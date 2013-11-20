@@ -1,0 +1,434 @@
+<?php
+
+class UserGroupsHooks extends WireData implements Module {
+
+	/**
+	 * getModuleInfo is a module required by all modules to tell ProcessWire about them
+	 *
+	 * @return array
+	 *
+	 */
+	public static function getModuleInfo() {
+
+		return array(
+
+			'title' => 'User Groups Hooks', 
+			'version' => 1,
+			'summary' => 'Autoload module that attachs all the hooks required by User Groups.',
+			'singular' => true, 
+			'autoload' => true, 
+			'requires' => 'ProcessUserGroups'
+			);
+	}
+
+	/**
+	 * Initialize the module
+	 *
+	 * ProcessWire calls this when the module is loaded. For 'autoload' modules, this will be called
+	 * when ProcessWire's API is ready. As a result, this is a good place to attach hooks. 
+	 *
+	 */
+	public function init() {
+
+		// Add $groups API variable
+		$template = $this->templates->get('user-group');
+		$parent = $this->pages->get("template=admin, name=usergroups");
+		$groups = new PagesType($template, $parent->id);
+		Wire::setFuel('groups', $groups);
+
+		$this->addHookAfter("ProcessPageEdit::buildFormRoles", $this, 'whoCanAccessInfo');
+
+		$this->addHookAfter("Page::viewable", $this, 'viewable');
+		$this->addHookAfter("Page::editable", $this, 'editable');
+		$this->addHookAfter("Page::addable", $this, 'addable');
+		$this->addHookAfter("Page::moveable", $this, 'moveable');
+		$this->addHookAfter("Page::sortable", $this, 'sortable');
+		$this->addHookBefore("Pages::find", $this, 'find');
+		$this->addHookAfter("Pages::saveReady", $this, 'save');
+		$this->addHookAfter("Pages::moved", $this, 'moved');
+
+		//$this->addHookBefore("Page::isChanged", $this, 'isChangedHook');
+
+		//
+		$this->addHookBefore("ProcessPageAdd::getAllowedTemplates", $this, 'allowedTemplates');
+
+	}
+
+	public function isChangedHook($event) {
+		$what = $event->arguments(0);
+		if($what != "inherit_access") return;
+
+		$event->replace = true;
+		$event->return = false;
+	}
+
+	public function moved($event) {
+
+		$page = $event->arguments[0];
+
+		if ($page->manage_access == 1) $accessPage = $page;
+		
+		$accessPage = $page->parent("manage_access=1");
+
+		// Rebuild access from the next "breakpoint"
+		$this->rebuild($accessPage->id, $accessPage->id);
+		//$this->rebuild(1, 1);
+
+	}
+
+	// TODO: rebuild when new pages added
+	// TODO: rebuild when access_page is removed
+	public function save($event) {
+		$page    = $event->arguments[0];
+
+		// If page doesn't have manage_access field at all, no need to continue
+		if ( ! $page->template->hasField('manage_access')) return;
+
+        $changes = $page->getChanges();
+
+        $accessChanges = false;
+
+        // Page is published
+        if ($page->isChanged('status') && !$page->is(Page::statusUnpublished)) $accessChanges = true;
+
+        foreach ($changes as $c) {
+        	$this->session->message("Changes: $c");
+        	if ($c == "manage_access") $accessChanges = true;
+        }
+
+        $msg = ($accessChanges) ? "yes" : "no";
+
+        $this->session->message("Access changed? $page->id, $msg");
+
+        if ( ! $accessChanges) return;
+
+		if ($page->manage_access == 1) {
+        	$accessPage = $page;
+        	$page->setTrackChanges();
+        } else {
+        	$accessPage = $page->parent("manage_access=1");
+        	$page->inherit_access = $accessPage;
+        }
+
+        if ( ! $accessPage->id) $accessPage = $this->pages->get(1);
+
+        $this->session->message("Access changed: $page->id => $accessPage->id");
+
+        $this->rebuild($page->id, $accessPage->id);
+    
+	}
+
+	public function rebuild($parent_id = 1, $access_page_id = 1, $rebuild_all = false) {
+
+            $insertions = array();
+            $parent_id = (int) $parent_id;
+            $access_page_id = (int) $access_page_id;
+
+            if ($access_page_id == 0) throw new WireException("At least homepage should manage access");
+
+            // Not sure if this is required here..?
+            if($parent_id == 1) {
+                    // if we're going to be rebuilding the entire tree, then just delete all of them now
+                    $this->db->query("DELETE FROM field_inherit_access"); // QA
+            }
+
+            $sql =  "SELECT pages.id, count(children.id) AS numChildren " . 
+                    "FROM pages " . 
+                    "LEFT JOIN pages AS children ON children.parent_id=pages.id " . 
+                    "WHERE pages.parent_id=$parent_id " .
+                    "GROUP BY pages.id ";
+
+            $result = $this->db->query($sql); // QA
+
+            $insertions[$parent_id] = $access_page_id;
+
+            while($row = $result->fetch_row()) {
+
+                    list($id, $numChildren) = $row; 
+
+                    // Skip the admin alltogether
+                    if ($id == 2) continue;
+
+                    // Look if page manages access, if so, then skip
+                    $sql2 = "SELECT data FROM field_manage_access WHERE pages_id = '$id'";
+
+                    $result2 = $this->db->query($sql2);
+
+
+                    if ($result2->num_rows > 0) {
+                    	$insertions[$id] = $id;
+                    	if($numChildren) $this->rebuild($id, $id); 
+                    } else {
+                        $insertions[$id] = $access_page_id; 
+                        // if there are children, rebuild any of them with this access template where applicable
+                        if($numChildren) {
+                        	$this->rebuild($id, $access_page_id); 
+                        }
+                    }
+
+                $result2->free();
+
+            }
+
+            $result->free();
+
+            if(count($insertions)) {
+                    // add the entries to the pages_access table
+                    $sql = "INSERT INTO field_inherit_access (pages_id, data) VALUES ";
+                    foreach($insertions as $id => $access_page_id) {
+                            $id = (int) $id;
+                            $access_page_id = (int) $access_page_id; 
+                            $sql .= "($id, $access_page_id),";
+                    }
+                    $sql = rtrim($sql, ",") . " " . "ON DUPLICATE KEY UPDATE data=VALUES(data) ";
+                    $this->session->message($sql);
+                    $this->db->query($sql); // QA
+
+            }
+
+    }
+
+	public function allowedTemplates($event) {
+		$event->replace = true;
+		$templates = array();
+		
+
+        if(isset($_POST['parent_id'])) {
+            $parent_id = (int) $_POST['parent_id']; 
+        } else {
+            $parent_id = isset($_GET['parent_id']) ? (int) $_GET['parent_id'] : 1; 
+        }
+
+		$parent = $this->pages->get($parent_id);
+
+		if ( ! $parent->editable()) throw new WireException("No hope dude");
+		
+
+
+
+		foreach ($this->templates as $t) {
+
+			if($t->noParents) continue; 
+
+            //if($t->useRoles && !$user->hasPermission('page-create', $t)) continue;  
+            //if(!$t->useRoles && !$parentEditable) continue; 
+            //if(!$t->useRoles && !$user->hasPermission('page-create', $this->parent)) continue; 
+
+            if(count($parent->template->childTemplates)) {
+                    if(!in_array($t->id, $parent->template->childTemplates)) continue; 
+            } 
+
+            if(count($t->parentTemplates)) {
+                    if(!in_array($parent->template->id, $t->parentTemplates)) continue; 
+            }
+
+            if ($t->name == 'user-group') continue;
+
+            if($t->flags & Template::flagSystem) { 
+                    if($t->name == 'user' && $parent->id != $this->config->usersPageID) continue; 
+                    if($t->name == 'role' && $parent->id != $this->config->rolesPageID) continue; 
+                    if($t->name == 'permission' && $parent->id != $this->config->permissionsPageID) continue; 
+            }
+
+			$templates[$t->id] = $t;
+		}
+
+		$event->return = $templates;
+	}
+
+	public function find($event) {
+	
+		$user = wire('user');
+		$page = wire('page');
+
+		
+		if ( ! isset($page)) return;
+
+		if ($page->template->name == "admin") return;
+
+		if ( ! $user->user_groups) return;	
+
+		$options = $event->arguments(1);
+
+		if (isset($options['findOne'])) {
+			if ($options['findOne']) return;
+		} 
+
+
+		$selector = $event->arguments[0];
+
+		// get by id, skip always
+		if (is_numeric($selector)) return;
+	
+		$everyone = $this->pages->get("template=user-group, name=everyone");
+		$logged = $this->pages->get("template=user-group, name=logged");
+
+		$user->user_groups->add($everyone);
+		if ($user->isLoggedIn()) $user->user_groups->add($logged);
+
+		$selector = $selector . ", inherit_access.view_groups={$user->user_groups}";
+		$event->arguments(0, $selector);
+	}
+
+	public function viewable($event) {
+		// get the vars we need to check access
+		$page = $event->object;
+		$user = $this->user;
+
+		// no need to check anything if it's the superuser
+		if($user->isSuperuser()) return;
+
+		// don't allow this access control on system templates
+		if($page->template->flags & Template::flagSystem) return;
+
+		if ($page->is(Page::statusUnpublished)) return;
+
+		// If our view_groups have "everyone", then no need for look further
+		$everyone = wire('groups')->get("everyone");
+		if ($page->inherit_access->view_groups->has($everyone)) {
+			$event->return = true;
+			return;
+		}
+
+		// If user is logged in and logged group is selected, then no need for look further
+		if ($user->isLoggedIn()) {
+			$logged = $user->user_groups->get("logged");
+			if ($page->inherit_access->view_groups->has($logged)) {
+				$event->return = true;
+				return;
+			}	
+		}
+
+		// If we haven't figured the view access yet, then just loop all the groups and look for our hero
+		foreach ($page->inherit_access->view_groups as $group) {
+			if ($user->user_groups->has($group)) {
+				$event->return = true;
+				return;
+			}
+		}
+
+		// Better luck next time, buddy
+		$event->return = false;
+	}
+
+	public function editable($event) {
+		$page = $event->object;
+		$user = wire('user');
+
+		$result = false;
+
+		if ($user->isSuperuser()) {
+			$event->return = true;
+			return;
+		}
+
+		if ( ! $page->inherit_access->id) return;
+
+		foreach ($user->user_groups as $g) {
+			if ($page->inherit_access->edit_groups->has($g)) $result = true;
+		}
+
+		$event->return = $result;
+
+	}
+
+	// If page is editable, it is also moveable
+	public function moveable($event) {
+		$page = $event->object;
+		$user = wire('user');
+
+		if ($page->editable()) $event->return = true;
+		else $event->return = false;
+	}	
+
+	public function addable($event) {
+		$page = $event->object;
+		$user = wire('user');
+
+		if ($page->editable()) $event->return = true;
+		else $event->return = false;
+	}	
+
+	public function sortable($event) {
+
+		$page = $event->object;
+		$user = wire('user');
+
+		if ($page->parent->editable()) $event->return = true;
+		else $event->return = false;
+	}
+
+	public function users($event) {
+		$page = $event->object;
+		if ($page->template != "user-group") return;
+
+		$users = wire('users')->find("roles={$page->roles}");
+		$users->import($page->direct_users);
+
+		$event->return = $users;
+	}
+
+	public function whoCanAccessInfo($event) {
+
+		$wrapper = $this->modules->get("InputfieldFieldset");
+		$wrapper->label = $this->_("User Access");
+
+
+		if(isset($_POST['id'])) $id = (int) $_POST['id']; 
+        else if(isset($_GET['id'])) $id = (int) $_GET['id']; 
+
+        $page = wire('pages')->get($id);
+
+        if( ! $page->id) return;
+        if ($page->is(Page::statusSystem)) return;
+        if ($page->template->name == "admin") return;
+
+        $viewable = $this->modules->get("InputfieldFieldset");
+		$viewable->label = $this->_("Page is viewable for these groups");
+		$viewable->columnWidth = 50;
+
+        $editable = $this->modules->get("InputfieldFieldset");
+		$editable->label = $this->_("Page is editable for these groups");
+		$editable->columnWidth = 50;
+
+		$pug = $this->modules->getModuleID('ProcessUserGroups');
+		$ugp = wire('pages')->get("template=admin, process=$pug");
+
+		$field = $this->modules->get("InputfieldMarkup");
+		$out = "";
+		if ($page->inherit_access->id) {
+			foreach ($page->inherit_access->view_groups as $g) {
+				$out .= "<a class='modal' href='{$ugp->url}edit/?group_id={$g->id}&modal=1'>$g->title</a>, ";
+			}	
+		}
+		
+		$out = rtrim($out, " ,");
+		$field->value = $out;
+		$viewable->add($field);
+
+
+		$field = $this->modules->get("InputfieldMarkup");
+		$out = "";
+		foreach ($page->inherit_access->edit_groups as $g) {
+			$out .= "<a class='modal' href='{$ugp->url}edit/?group_id={$g->id}&modal=1'>$g->title</a>, ";
+		}
+		$out = rtrim($out, " ,");
+		$field->value = $out;
+		$editable->add($field);
+
+
+
+		
+		$wrapper->add($viewable);
+		$wrapper->add($editable);
+
+		$wrapper->notes = $this->_("These rules are inherited from page **") . $page->inherit_access->title . "** (" . $page->inherit_access->url . ")";
+		$event->return = $wrapper;
+
+	}
+
+	public function install() {
+		$this->rebuild();
+	}
+
+}
