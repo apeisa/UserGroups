@@ -8,13 +8,13 @@ class ProcessUserGroups extends Process {
 	 */
 	public static function getModuleInfo() {
 		return array(
-			'title' => __('User Groups', __FILE__), 
+			'title' => __('User Groups', __FILE__),
 			'summary' => __('Manage user groups for ProcessWire for streamlined access management', __FILE__),
-			'version' => 1, 
-			'author' => 'Antti Peisa', 
-			'href' => 'http://modules.processwire.com/', 
+			'version' => 1,
+			'author' => 'Antti Peisa',
+			'href' => 'http://modules.processwire.com/',
 			'permission' => 'page-edit'
-			); 
+		);
 	}
 
 	/**
@@ -36,10 +36,10 @@ class ProcessUserGroups extends Process {
 	}
 
 	/**
-	 * This function is executed when a page with your Process assigned is accessed. 
- 	 *
+	 * This function is executed when a page with your Process assigned is accessed.
+	 *
 	 * This can be seen as your main or index function. You'll probably want to replace
-	 * everything in this function. 
+	 * everything in this function.
 	 *
 	 */
 	public function ___execute() {
@@ -48,16 +48,13 @@ class ProcessUserGroups extends Process {
 		$usersCount_str = $this->_("Users");
 		$remove_str = $this->_('Remove');
 
-		
-
 		$table = $this->modules->get("MarkupAdminDataTable");
 		$table->setEncodeEntities(false);
 		$table->headerRow(array(
-			$group_str, 
+			$group_str,
 			$usersCount_str,
 			$remove_str
-			)); 
-		
+			));
 
 		foreach ($this->page->children as $group) {
 
@@ -67,27 +64,24 @@ class ProcessUserGroups extends Process {
 					"&#8734;",
 					"&nbsp;"
 				));
-			} 
-			else if ($group->name == "logged") {
+			} else if ($group->name == "logged") {
 				$table->row(array(
 					$group->title,
 					wire('users')->count(),
 					"&nbsp;"
 				));
-			} 
-			else {
+			} else {
 				$table->row(array(
 					$group->title  => "./edit/?group_id=" . $group->id,
 					//Tähän ryhmän jäsenten lkm
 					"",
 					$remove_str => "./remove/?group_id=" . $group->id
 				));
-			} 
+			}
 
-			
 		}
 
-		$table->action(array($this->_('Add New Group') => 'add/')); 
+		$table->action(array($this->_('Add New Group') => 'add/'));
 
 		return $table->render();
 	}
@@ -97,9 +91,8 @@ class ProcessUserGroups extends Process {
 		Wire::setFuel('processHeadline', $this->_('Add New Group'));
 		$this->breadcrumbs->add(new Breadcrumb('../', $this->_('User Groups')));
 
-
 		if ($this->input->post->group_title) {
-			$newgroup = wire('pages')->add('user-group', wire('page'), array('title' => $this->input->post->group_title)); 
+			$newgroup = wire('pages')->add('user-group', wire('page'), array('title' => $this->input->post->group_title));
 			$this->message($this->_("New group added:") . " " . $this->input->post->group_title);
 			$this->session->redirect("../");
 		}
@@ -113,7 +106,7 @@ class ProcessUserGroups extends Process {
 
 		$submit = $this->modules->get("InputfieldSubmit");
 		$submit->value = $this->_("Create New Group");
-		$form->add($submit); 
+		$form->add($submit);
 
 		return $form->render();
 	}
@@ -152,7 +145,7 @@ class ProcessUserGroups extends Process {
 					$u->user_groups->add($group);
 					$u->save();
 				}
-				
+
 			}
 
 
@@ -161,9 +154,9 @@ class ProcessUserGroups extends Process {
 					$u = wire('users')->get($user_id);
 					$u->user_groups->remove($group);
 					$u->save();
-				}	
+				}
 			}
-			
+
 			$this->session->redirect("./?group_id=$group_id");
 		}
 
@@ -175,8 +168,6 @@ class ProcessUserGroups extends Process {
 				$this->_("Email"),
 				$this->_("Remove")
 				));
-
-			
 
 			foreach ($usersInGroup as $u) {
 
@@ -195,9 +186,6 @@ class ProcessUserGroups extends Process {
 		} else {
 			$html = $this->_("No users in group");
 		}
-
-		
-
 
 		$form = $this->modules->get("InputfieldForm");
 		$form->action = "./?group_id=$group_id";
@@ -227,27 +215,25 @@ class ProcessUserGroups extends Process {
 		$field->searchFields = "name email";
 		$form->add($field);
 
-
 		$submit = $this->modules->get("InputfieldSubmit");
 		$form->add($submit);
 		$out .= $form->render();
 
 		return $out;
-		
 	}
 
 	/**
-	 * This creates a new page with this Process module assigned. 
+	 * This creates a new page with this Process module assigned.
 	 */
 	public function ___install() {
 
 		// create the page our module will be assigned to
 		$page = new Page();
 		$page->template = 'admin';
-		$page->name = self::pageName; 
+		$page->name = self::pageName;
 
 		$page->parent = $this->pages->get($this->config->adminRootPageID)->child('name=access');
-		$page->process = $this; 
+		$page->process = $this;
 
 		$info = self::getModuleInfo();
 		$page->title = $info['title'];
@@ -256,128 +242,127 @@ class ProcessUserGroups extends Process {
 		$page->save();
 
 		// tell the user we created this page
-		$this->message("Created Page: {$page->path}"); 
+		$this->message("Created Page: {$page->path}");
 
 		// new fieldgroup
-        $ug = new Fieldgroup();
-        $ug->name = "user-group";
-        $ug->add($this->fields->get('title'));
-        $ug->save();
+		$ug = new Fieldgroup();
+		$ug->name = "user-group";
+		$ug->add($this->fields->get('title'));
+		$ug->save();
 
-        // new template using the fieldgroup
-        $t = new Template();
-        $t->name = "user-group";
-        $t->fieldgroup = $ug; // add the fieldgroup
-        $t->flags = Template::flagSystem;
-        $t->noGlobal = 1;
-        $t->save();
+		// new template using the fieldgroup
+		$t = new Template();
+		$t->name = "user-group";
+		$t->fieldgroup = $ug; // add the fieldgroup
+		$t->flags = Template::flagSystem;
+		$t->noGlobal = 1;
+		$t->save();
 
+		// Add new field user template (user_groups that user belongs to)
+		$f = $this->fields->get('user_groups');
+		if (! $f->id) {
+			$f = new Field();
+			$f->type = $this->modules->get("FieldtypePage");
+			$f->name = "user_groups";
+			$f->inputfield = 'InputfieldAsmSelect';
+			$f->parent_id = $page->id;
+			$f->template_id = $t->id;
+			$f->save();
+		}
+		$ufg = $this->fieldgroups->get("user");
+		$ufg->add($f);
+		$ufg->save();
 
-        // Add new field user template (user_groups that user belongs to)
-        $f = $this->fields->get('user_groups');
-        if (! $f->id) {
-        	$f = new Field();
-	        $f->type = $this->modules->get("FieldtypePage");
-	        $f->name = "user_groups";
-	        $f->inputfield = 'InputfieldAsmSelect';
-	        $f->parent_id = $page->id;
-	        $f->template_id = $t->id;
-	        $f->save();   
-        }
-        $ufg = $this->fieldgroups->get("user");
-        $ufg->add($f);
-        $ufg->save();
+		$f = $this->fields->get('manage_access');
+		if ( ! $f->id) {
+			$f = new Field();
+			$f->type = $this->modules->get("FieldtypeCheckbox");
+			$f->name = "manage_access";
+			$f->label = "Manage access";
+			$f->description = "Choose if you want to select groups that can view or edit this page. Otherwise access is inherited from parent page";
+			$f->inputfield = "InputfieldCheckbox";
+			$f->flags = Field::flagGlobal;
+			$f->save();
+		}
 
-        $f = $this->fields->get('manage_access');
-        if ( ! $f->id) {
-        	$f = new Field();
-	        $f->type = $this->modules->get("FieldtypeCheckbox");
-	        $f->name = "manage_access";
-	        $f->label = "Manage access";
-	        $f->description = "Choose if you want to select groups that can view or edit this page. Otherwise access is inherited from parent page";
-	        $f->inputfield = "InputfieldCheckbox";
-	        $f->flags = Field::flagGlobal;
-	        $f->save();
-        }
+		$f = $this->fields->get('view_groups');
+		if ( ! $f->id) {
+			$f = new Field();
+			$f->type = $this->modules->get("FieldtypePage");
+			$f->name = "view_groups";
+			$f->label = "View Groups";
+			$f->description = "Groups that can view this page";
+			$f->inputfield = "InputfieldAsmSelect";
+			$f->parent_id = $page->id;
+			$f->template_id = $t->id;
+			$f->labelFieldName = "title";
+			$f->flags = Field::flagGlobal;
+			$f->columnWidth = 50;
+			$f->showIf = "manage_access=1";
+			$f->save();
+		}
 
-        $f = $this->fields->get('view_groups');
-        if ( ! $f->id) {
-        	$f = new Field();
-	        $f->type = $this->modules->get("FieldtypePage");
-	        $f->name = "view_groups";
-	        $f->label = "View Groups";
-	        $f->description = "Groups that can view this page";
-	        $f->inputfield = "InputfieldAsmSelect";
-	        $f->parent_id = $page->id;
-	        $f->template_id = $t->id;
-	        $f->labelFieldName = "title";
-	        $f->flags = Field::flagGlobal;
-	        $f->columnWidth = 50;
-	        $f->showIf = "manage_access=1";
-	        $f->save();
-        }
+		$f = $this->fields->get('edit_groups');
+		if ( ! $f->id) {
+			$f = new Field();
+			$f->type = $this->modules->get("FieldtypePage");
+			$f->name = "edit_groups";
+			$f->label = "Edit Groups";
+			$f->description = "Groups that can edit this page";
+			$f->inputfield = "InputfieldAsmSelect";
+			$f->findPagesSelector = "template=user-group, name!=everyone|logged";
+			$f->labelFieldName = "title";
+			$f->flags = Field::flagGlobal;
+			$f->columnWidth = 50;
+			$f->showIf = "manage_access=1";
+			$f->save();
+		}
 
-        $f = $this->fields->get('edit_groups');
-        if ( ! $f->id) {
-        	$f = new Field();
-	        $f->type = $this->modules->get("FieldtypePage");
-	        $f->name = "edit_groups";
-	        $f->label = "Edit Groups";
-	        $f->description = "Groups that can edit this page";
-	        $f->inputfield = "InputfieldAsmSelect";
-	        $f->findPagesSelector = "template=user-group, name!=everyone|logged";
-	        $f->labelFieldName = "title";
-	        $f->flags = Field::flagGlobal;
-	        $f->columnWidth = 50;
-	        $f->showIf = "manage_access=1";
-	        $f->save();
-        }
+		$f = $this->fields->get('inherit_access');
+		if ( ! $f->id) {
+			$f = new Field();
+			$f->type = $this->modules->get("FieldtypePage");
+			$f->name = "inherit_access";
+			$f->label = "Inherit Access";
+			$f->description = "Page that this page inherits access from";
+			$f->inputfield = "InputfieldPageListSelect";
+			$f->labelFieldName = "path";
+			$f->derefAsPage = FieldtypePage::derefAsPageOrFalse;
+			$f->flags = Field::flagGlobal;
+			$f->columnWidth = 100;
+			$f->collapsed = Inputfield::collapsedHidden;
+			$f->save();
+		}
 
-        $f = $this->fields->get('inherit_access');
-        if ( ! $f->id) {
-        	$f = new Field();
-	        $f->type = $this->modules->get("FieldtypePage");
-	        $f->name = "inherit_access";
-	        $f->label = "Inherit Access";
-	        $f->description = "Page that this page inherits access from";
-	        $f->inputfield = "InputfieldPageListSelect";
-	        $f->labelFieldName = "path";
-	        $f->derefAsPage = FieldtypePage::derefAsPageOrFalse;
-	        $f->flags = Field::flagGlobal;
-	        $f->columnWidth = 100;
-	        $f->collapsed = Inputfield::collapsedHidden;
-	        $f->save();
-        }
+		$newpage = $this->pages->add('user-group', $page, 'everyone', array('title' => 'Everyone'));
+		$newpage->save();
 
-        $newpage = $this->pages->add('user-group', $page, 'everyone', array('title' => 'Everyone')); 
-        $newpage->save();
+		$newpage = $this->pages->add('user-group', $page, 'logged', array('title' => 'Logged in users'));
+		$newpage->save();
 
-        $newpage = $this->pages->add('user-group', $page, 'logged', array('title' => 'Logged in users')); 
-        $newpage->save();
+		// Lets activate the manage access for home page
+		$home = $this->pages->get(1);
+		$home->manage_access = 1;
+		$home->save();
 
-        // Lets activate the manage access for home page
-        $home = $this->pages->get(1);
-        $home->manage_access = 1;
-        $home->save();
-        
 	}
 
 	/**
 	 * Called only when your module is uninstalled
 	 *
-	 * This should return the site to the same state it was in before the module was installed. 
+	 * This should return the site to the same state it was in before the module was installed.
 	 *
 	 */
 	public function ___uninstall() {
 
 		// find the page we installed, locating it by the process field (which has the module ID)
 		// it would probably be sufficient just to locate by name, but this is just to be extra sure.
-		$moduleID = $this->modules->getModuleID($this); 
-		$page = $this->pages->get("template=admin, process=$moduleID, name=" . self::pageName); 
+		$moduleID = $this->modules->getModuleID($this);
+		$page = $this->pages->get("template=admin, process=$moduleID, name=" . self::pageName);
 
 		if($page->id) {
 			// if we found the page, let the user know and delete it
-			$this->message("Deleting Page: {$page->path}"); 
+			$this->message("Deleting Page: {$page->path}");
 			wire('pages')->delete($page, true);
 		}
 
@@ -396,7 +381,6 @@ class ProcessUserGroups extends Process {
 			$f->save();
 		}
 
-
 		foreach ($this->fieldgroups as $fg) {
 			$fg->remove($this->fields->get('manage_access'));
 			$fg->remove($this->fields->get('view_groups'));
@@ -409,9 +393,7 @@ class ProcessUserGroups extends Process {
 		foreach ($rFields as $f) {
 			$this->fields->delete($f);
 		}
-		
-	
-	}
-	
-}
 
+	}
+
+}
