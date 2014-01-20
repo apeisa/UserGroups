@@ -76,34 +76,44 @@ class UserGroupsHooks extends WireData implements Module {
 	}
 
 	// TODO: rebuild when new pages added
-	// TODO: rebuild when access_page is removed
+	// TODO: rebuild when access_page is removed (just for the sake of garbage collection)
 	public function save($event) {
 		$page = $event->arguments[0];
 
 		// If page doesn't have manage_access field at all, no need to continue
 		if ( ! $page->template->hasField('manage_access')) return;
 
-		$changes = $page->getChanges();
-
-		$accessChanges = false;
-
-		// Page is published
-		if ($page->isChanged('status') && ! $page->is(Page::statusUnpublished)) $accessChanges = true;
-
-		foreach ($changes as $c) {
-			$this->session->message("Changes: $c");
-			if ($c == "manage_access") $accessChanges = true;
+		// are there changes to view or edit groups?
+		if ($page->isChanged('view_groups') || $page->isChanged('edit_groups')) {
+			// TODO: make sure all edit groups have view access as well
 		}
 
-		$msg = ($accessChanges) ? "yes" : "no";
+		// reset manage_access if no groups are defined for view nor edit
+		if ( ! count($page->view_groups) && ! count($page->edit_groups)) {
+			$page->manage_access = 0;
+		}
 
-		$this->session->message("Access changed? $page->id, $msg");
+		// DEBUG
+		$this->session->message("view groups changed: "   . $page->isChanged('view_groups'));
+		$this->session->message("edit groups changed: "   . $page->isChanged('edit_groups'));
+		$this->session->message("manage access changed: " . $page->isChanged('manage_access'));
 
-		if ( ! $accessChanges) return;
+		$rebuildNeeded = false;
 
+		// has page been just published? If so, a rebuild is needed
+		if ($page->isChanged('status') && ! $page->is(Page::statusUnpublished)) $rebuildNeeded = true;
+
+		// has access management been toggled? If so, a rebuild is needed
+		if ($page->isChanged('manage_access')) $rebuildNeeded = true;
+
+		if ( ! $rebuildNeeded) return;
+
+		// manage access here
 		if ($page->manage_access == 1) {
 			$accessPage = $page;
-			$page->setTrackChanges();
+			// TODO: what is this for? seems like it's not needed!
+			// $page->setTrackChanges();
+		// inherit access
 		} else {
 			$accessPage = $page->parent("manage_access=1");
 			$page->inherit_access = $accessPage;
