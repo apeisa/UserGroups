@@ -85,7 +85,8 @@ class UserGroupsHooks extends WireData implements Module {
 
 		// are there changes to view or edit groups?
 		if ($page->isChanged('view_groups') || $page->isChanged('edit_groups')) {
-			// TODO: make sure all edit groups have view access as well
+			// make sure all edit groups have view access as well
+			$page->view_groups->add($page->edit_groups);
 		}
 
 		// reset manage_access if no groups are defined for view nor edit
