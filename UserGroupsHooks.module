@@ -46,19 +46,9 @@ class UserGroupsHooks extends WireData implements Module {
 		$this->addHookAfter("Pages::saveReady", $this, 'save');
 		$this->addHookAfter("Pages::moved", $this, 'moved');
 
-		//$this->addHookBefore("Page::isChanged", $this, 'isChangedHook');
-
 		//
 		$this->addHookBefore("ProcessPageAdd::getAllowedTemplates", $this, 'allowedTemplates');
 
-	}
-
-	public function isChangedHook($event) {
-		$what = $event->arguments(0);
-		if ($what != "inherit_access") return;
-
-		$event->replace = true;
-		$event->return = false;
 	}
 
 	public function moved($event) {
