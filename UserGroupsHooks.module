@@ -85,9 +85,9 @@ class UserGroupsHooks extends WireData implements Module {
 		}
 
 		// DEBUG
-		$this->session->message("view groups changed: "   . $page->isChanged('view_groups'));
-		$this->session->message("edit groups changed: "   . $page->isChanged('edit_groups'));
-		$this->session->message("manage access changed: " . $page->isChanged('manage_access'));
+		$this->log->message("view groups changed: "   . $page->isChanged('view_groups') . ", now: " . $page->view_groups);
+		$this->log->message("edit groups changed: "   . $page->isChanged('edit_groups') . ", now: " . $page->edit_groups);
+		$this->log->message("manage access changed: " . $page->isChanged('manage_access') . ", now: " . $page->manage_access);
 
 		$rebuildNeeded = false;
 
@@ -118,6 +118,13 @@ class UserGroupsHooks extends WireData implements Module {
 
 	}
 
+	/**
+	 * Rebuild table field_inherit_access.
+	 *
+	 * Writes a row for each page inheriting access from up above.
+	 * Does *not* write a row for a page managing access itself. (<-- to avoid circular references later on!)
+	 *
+	*/
 	public function rebuild($parent_id = 1, $access_page_id = 1, $rebuild_all = false) {
 
 		$insertions = array();
@@ -140,14 +147,14 @@ class UserGroupsHooks extends WireData implements Module {
 
 		$result = $this->db->query($sql); // QA
 
-		$insertions[$parent_id] = $access_page_id;
+		if($parent_id != $access_page_id) $insertions[$parent_id] = $access_page_id;
 
 		while ($row = $result->fetch_row()) {
 
 			list($id, $numChildren) = $row;
 
 			// Skip the admin alltogether
-			if ($id == 2) continue;
+			if ($id == $this->config->adminRootPageID) continue;
 
 			// Look if page manages access, if so, then skip
 			$sql2 = "SELECT data FROM field_manage_access WHERE pages_id = '$id'";
@@ -155,7 +162,6 @@ class UserGroupsHooks extends WireData implements Module {
 			$result2 = $this->db->query($sql2);
 
 			if ($result2->num_rows > 0) {
-				$insertions[$id] = $id;
 				if($numChildren) $this->rebuild($id, $id);
 			} else {
 				$insertions[$id] = $access_page_id;
@@ -259,7 +265,7 @@ class UserGroupsHooks extends WireData implements Module {
 		$user->user_groups->add($everyone);
 		if ($user->isLoggedIn()) $user->user_groups->add($logged);
 
-		$selector = $selector . ", inherit_access.view_groups={$user->user_groups}";
+		$selector = $selector . ", view_groups|inherit_access.view_groups={$user->user_groups}";
 		$event->arguments(0, $selector);
 	}
 
@@ -276,9 +282,11 @@ class UserGroupsHooks extends WireData implements Module {
 
 		if ($page->is(Page::statusUnpublished)) return;
 
+		$accessPage = $this->getAccessPage($page);
+
 		// If our view_groups have "everyone", then no need for look further
 		$everyone = wire('groups')->get("everyone");
-		if ($page->inherit_access->view_groups->has($everyone)) {
+		if ($accessPage->view_groups->has($everyone)) {
 			$event->return = true;
 			return;
 		}
@@ -286,14 +294,14 @@ class UserGroupsHooks extends WireData implements Module {
 		// If user is logged in and logged group is selected, then no need for look further
 		if ($user->isLoggedIn()) {
 			$logged = $user->user_groups->get("logged");
-			if ($page->inherit_access->view_groups->has($logged)) {
+			if ($accessPage->view_groups->has($logged)) {
 				$event->return = true;
 				return;
 			}
 		}
 
 		// If we haven't figured the view access yet, then just loop all the groups and look for our hero
-		foreach ($page->inherit_access->view_groups as $group) {
+		foreach ($accessPage->view_groups as $group) {
 			if ($user->user_groups->has($group)) {
 				$event->return = true;
 				return;
@@ -315,10 +323,8 @@ class UserGroupsHooks extends WireData implements Module {
 			return;
 		}
 
-		if ( ! $page->inherit_access->id) return;
-
 		foreach ($user->user_groups as $g) {
-			if ($page->inherit_access->edit_groups->has($g)) $result = true;
+			if ($this->getAccessPage($page)->edit_groups->has($g)) $result = true;
 		}
 
 		$event->return = $result;
@@ -351,14 +357,29 @@ class UserGroupsHooks extends WireData implements Module {
 		else $event->return = false;
 	}
 
-	public function users($event) {
-		$page = $event->object;
-		if ($page->template != "user-group") return;
+#	public function users($event) {
+#		$page = $event->object;
+#		if ($page->template != "user-group") return;
+#
+#		$users = wire('users')->find("roles={$page->roles}");
+#		$users->import($page->direct_users);
+#
+#		$event->return = $users;
+#	}
 
-		$users = wire('users')->find("roles={$page->roles}");
-		$users->import($page->direct_users);
-
-		$event->return = $users;
+	/**
+	 * Get the Page defining access to the given page.
+	 *
+	 * If page manages access definitions itself, return the same page.
+	 * If page inherits access definitions, return the defining page.
+	 *
+	 * @param Page $page
+	 *
+	 * @return Page
+	*/
+	public function getAccessPage($page) {
+		if($page->manage_access) return $page;
+		return $page->inherit_access;
 	}
 
 	public function whoCanAccessInfo($event) {
@@ -375,6 +396,8 @@ class UserGroupsHooks extends WireData implements Module {
 		if ($page->is(Page::statusSystem)) return;
 		if ($page->template->name == "admin") return;
 
+		$accessPage = $this->getAccessPage($page);
+
 		$viewable = $this->modules->get("InputfieldFieldset");
 		$viewable->label = $this->_("Page is viewable for these groups");
 		$viewable->columnWidth = 50;
@@ -388,10 +411,8 @@ class UserGroupsHooks extends WireData implements Module {
 
 		$field = $this->modules->get("InputfieldMarkup");
 		$out = "";
-		if ($page->inherit_access->id) {
-			foreach ($page->inherit_access->view_groups as $g) {
-				$out .= "<a class='modal' href='{$ugp->url}edit/?group_id={$g->id}&modal=1'>$g->title</a>, ";
-			}
+		foreach ($accessPage->view_groups as $g) {
+			$out .= "<a class='modal' href='{$ugp->url}edit/?group_id={$g->id}&modal=1'>$g->title</a>, ";
 		}
 
 		$out = rtrim($out, " ,");
@@ -400,7 +421,7 @@ class UserGroupsHooks extends WireData implements Module {
 
 		$field = $this->modules->get("InputfieldMarkup");
 		$out = "";
-		foreach ($page->inherit_access->edit_groups as $g) {
+		foreach ($accessPage->edit_groups as $g) {
 			$out .= "<a class='modal' href='{$ugp->url}edit/?group_id={$g->id}&modal=1'>$g->title</a>, ";
 		}
 		$out = rtrim($out, " ,");
@@ -410,7 +431,11 @@ class UserGroupsHooks extends WireData implements Module {
 		$wrapper->add($viewable);
 		$wrapper->add($editable);
 
-		$wrapper->notes = $this->_("These rules are inherited from page **") . $page->inherit_access->title . "** (" . $page->inherit_access->url . ")";
+		if($accessPage->id != $page->id) {
+			$wrapper->notes = $this->_("These rules are inherited from page **") . $accessPage->title . "** (" . $accessPage->url . ")";
+		} else {
+			$wrapper->notes = $this->_("These rules have been defined on this very page.");
+		}
 		$event->return = $wrapper;
 
 	}
