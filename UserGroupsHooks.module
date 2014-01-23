@@ -45,33 +45,92 @@ class UserGroupsHooks extends WireData implements Module {
 		$this->addHookBefore("Pages::find", $this, 'find');
 		$this->addHookAfter("Pages::saveReady", $this, 'save');
 		$this->addHookAfter("Pages::moved", $this, 'moved');
+		$this->addHookAfter("Pages::trashed", $this, 'trashed');
+		$this->addHookAfter("Pages::added", $this, 'added');
 
 		//
 		$this->addHookBefore("ProcessPageAdd::getAllowedTemplates", $this, 'allowedTemplates');
 
 	}
 
+	/**
+	 * Page trashed, clean up inheritance information
+	 *
+	 * Also save() and moved() get called but they short circuit for trashed pages.
+	 * Restoring pages requires no special care as moved() handles that also.
+	 * Deleting pages (trashed or not) requires no special care as core cleans up refs to deleted pages automagically.
+	 *
+	 */
+	public function trashed($event) {
+
+		$page = $event->arguments[0];
+
+		$this->log->message("trashed: $page->id @ $page->path");
+
+		$deletions = array($page->id);
+		foreach($this->pages->find("has_parent=$page, include=all") as $p) $deletions[] = $p->id;
+
+		if (count($deletions)) {
+			$sql = "DELETE FROM field_inherit_access WHERE pages_id IN(" . implode(',', $deletions) . ")";
+			$this->log->message($sql);
+			$this->db->query($sql);
+		}
+	}
+
+	/**
+	 * Page added, rebuild for the new page.
+	 *
+	 */
+	public function added($event) {
+
+		$page = $event->arguments[0];
+
+		// find out where access is inherited from (from direct parent or somewhere further away)
+		$accessPage = $this->getAccessPage($page->parent);
+
+		$this->log->message("added: $page->id @ $page->path (access defaults to $accessPage->id @ $accessPage->path)");
+		// rebuild - just this new page actually
+		$this->rebuild($page->id, $accessPage->id);
+	}
+
+
+	/**
+	 * Page moved, rebuild starting from moved page.
+	 *
+	 */
 	public function moved($event) {
 
 		$page = $event->arguments[0];
 
+		// don't mind trashed pages here
+		if ($page->isTrash()) return;
+
+		// access page is either the moved page (if manage_access has been set)
+		// or the closest parent with manage_access set
 		if ($page->manage_access == 1) $accessPage = $page;
+		else $accessPage = $page->parent("manage_access=1");
 
-		$accessPage = $page->parent("manage_access=1");
+		$this->log->message("moved $page->id");
 
-		// Rebuild access from the next "breakpoint"
-		$this->rebuild($accessPage->id, $accessPage->id);
-		//$this->rebuild(1, 1);
+		// rebuild from moved page, using access page retrieved above
+		$this->rebuild($page->id, $accessPage->id);
 
 	}
 
-	// TODO: rebuild when new pages added
-	// TODO: rebuild when access_page is removed (just for the sake of garbage collection)
 	public function save($event) {
+
 		$page = $event->arguments[0];
 
 		// If page doesn't have manage_access field at all, no need to continue
 		if ( ! $page->template->hasField('manage_access')) return;
+
+		// If page has just been added and has no id yet, no need to continue
+		if ( ! $page->id) return;
+
+		// don't mind trashed pages here
+		if ($page->isTrash()) return;
+
+		$this->log->message("saved: $page->id @ $page->path");
 
 		// are there changes to view or edit groups?
 		if ($page->isChanged('view_groups') || $page->isChanged('edit_groups')) {
@@ -112,7 +171,7 @@ class UserGroupsHooks extends WireData implements Module {
 
 		if ( ! $accessPage->id) $accessPage = $this->pages->get(1);
 
-		$this->session->message("Access changed: $page->id => $accessPage->id");
+		$this->log->message("Access changed: $page->id => $accessPage->id");
 
 		$this->rebuild($page->id, $accessPage->id);
 
@@ -127,10 +186,13 @@ class UserGroupsHooks extends WireData implements Module {
 	*/
 	public function rebuild($parent_id = 1, $access_page_id = 1, $rebuild_all = false) {
 
-		$insertions = array();
+ 		$this->log->message("rebuild($parent_id: '" . $this->pages->get($parent_id)->path ."', $access_page_id: '" . $this->pages->get($access_page_id)->path . "')");
+ 		$insertions = array();
+ 		$deletions = array();
 		$parent_id = (int) $parent_id;
 		$access_page_id = (int) $access_page_id;
 
+		if ($parent_id == 0) throw new WireException("Invalid parent id");
 		if ($access_page_id == 0) throw new WireException("At least homepage should manage access");
 
 		// Not sure if this is required here..?
@@ -147,7 +209,10 @@ class UserGroupsHooks extends WireData implements Module {
 
 		$result = $this->db->query($sql); // QA
 
-		if($parent_id != $access_page_id) $insertions[$parent_id] = $access_page_id;
+		// make sure there is no row for pages managing access themselves,
+		// but there is one for pages inheriting access
+		if($parent_id == $access_page_id) $deletions[] = $parent_id;
+		else $insertions[$parent_id] = $access_page_id;
 
 		while ($row = $result->fetch_row()) {
 
@@ -155,6 +220,8 @@ class UserGroupsHooks extends WireData implements Module {
 
 			// Skip the admin alltogether
 			if ($id == $this->config->adminRootPageID) continue;
+			// ...and the same goes for trash
+			if ($id == $this->config->trashPageID) continue;
 
 			// Look if page manages access, if so, then skip
 			$sql2 = "SELECT data FROM field_manage_access WHERE pages_id = '$id'";
@@ -186,9 +253,15 @@ class UserGroupsHooks extends WireData implements Module {
 				$sql .= "($id, $access_page_id),";
 			}
 			$sql = rtrim($sql, ",") . " " . "ON DUPLICATE KEY UPDATE data=VALUES(data) ";
-			$this->session->message($sql);
+			$this->log->message($sql);
 			$this->db->query($sql); // QA
 
+		}
+
+		if (count($deletions)) {
+			$sql = "DELETE FROM field_inherit_access WHERE pages_id IN(" . implode(',', $deletions) . ")";
+			$this->log->message($sql);
+			$this->db->query($sql);
 		}
 
 	}
