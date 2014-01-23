@@ -46,10 +46,30 @@ class UserGroupsHooks extends WireData implements Module {
 		$this->addHookAfter("Pages::saveReady", $this, 'save');
 		$this->addHookAfter("Pages::moved", $this, 'moved');
 
+		$this->addHookAfter("Pages::added", $this, 'added');
+
+
 		//
 		$this->addHookBefore("ProcessPageAdd::getAllowedTemplates", $this, 'allowedTemplates');
 
 	}
+
+	/**
+	 * Page added, rebuild for the new page.
+	 *
+	 */
+	public function added($event) {
+
+		$page = $event->arguments[0];
+
+		// find out where access is inherited from (from direct parent or somewhere further away)
+		$accessPage = $this->getAccessPage($page->parent);
+
+		$this->log->message("added: $page->id @ $page->path (access defaults to $accessPage->id @ $accessPage->path)");
+		// rebuild - just this new page actually
+		$this->rebuild($page->id, $accessPage->id);
+	}
+
 
 	/**
 	 * Page moved, rebuild starting from moved page.
@@ -71,13 +91,17 @@ class UserGroupsHooks extends WireData implements Module {
 
 	}
 
-	// TODO: rebuild when new pages added
 	// TODO: rebuild when access_page is removed (just for the sake of garbage collection)
 	public function save($event) {
 		$page = $event->arguments[0];
 
+		$this->log->message("saved: $page->id @ $page->path");
+
 		// If page doesn't have manage_access field at all, no need to continue
 		if ( ! $page->template->hasField('manage_access')) return;
+
+		// If page has just been added and has no id yet, no need to continue
+		if ( ! $page->id) return;
 
 		// are there changes to view or edit groups?
 		if ($page->isChanged('view_groups') || $page->isChanged('edit_groups')) {
@@ -138,6 +162,7 @@ class UserGroupsHooks extends WireData implements Module {
 		$parent_id = (int) $parent_id;
 		$access_page_id = (int) $access_page_id;
 
+		if ($parent_id == 0) throw new WireException("Invalid parent id");
 		if ($access_page_id == 0) throw new WireException("At least homepage should manage access");
 
 		// Not sure if this is required here..?
