@@ -51,17 +51,23 @@ class UserGroupsHooks extends WireData implements Module {
 
 	}
 
+	/**
+	 * Page moved, rebuild starting from moved page.
+	 *
+	 */
 	public function moved($event) {
 
 		$page = $event->arguments[0];
 
+		// access page is either the moved page (if manage_access has been set)
+		// or the closest parent with manage_access set
 		if ($page->manage_access == 1) $accessPage = $page;
+		else $accessPage = $page->parent("manage_access=1");
 
-		$accessPage = $page->parent("manage_access=1");
+		$this->log->message("moved $page->id");
 
-		// Rebuild access from the next "breakpoint"
-		$this->rebuild($accessPage->id, $accessPage->id);
-		//$this->rebuild(1, 1);
+		// rebuild from moved page, using access page retrieved above
+		$this->rebuild($page->id, $accessPage->id);
 
 	}
 
@@ -127,7 +133,8 @@ class UserGroupsHooks extends WireData implements Module {
 	*/
 	public function rebuild($parent_id = 1, $access_page_id = 1, $rebuild_all = false) {
 
-		$insertions = array();
+ 		$this->log->message("rebuild($parent_id: '" . $this->pages->get($parent_id)->path ."', $access_page_id: '" . $this->pages->get($access_page_id)->path . "')");
+ 		$insertions = array();
 		$parent_id = (int) $parent_id;
 		$access_page_id = (int) $access_page_id;
 
