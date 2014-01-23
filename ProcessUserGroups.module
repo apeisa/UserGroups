@@ -10,7 +10,7 @@ class ProcessUserGroups extends Process {
 		return array(
 			'title' => __('User Groups', __FILE__),
 			'summary' => __('Manage user groups for ProcessWire for streamlined access management', __FILE__),
-			'version' => 1,
+			'version' => 2,
 			'author' => 'Antti Peisa, Niklas Lakanen, Teppo Koivula',
 			'href' => 'http://modules.processwire.com/',
 			'permission' => 'page-edit'
@@ -148,7 +148,6 @@ class ProcessUserGroups extends Process {
 
 			}
 
-
 			if ($this->input->post->remove) {
 				foreach ($this->input->post->remove as $user_id) {
 					$u = wire('users')->get($user_id);
@@ -220,6 +219,70 @@ class ProcessUserGroups extends Process {
 		$out .= $form->render();
 
 		return $out;
+	}
+
+	/**
+	 * Removes specified group
+	 *
+	 * If GET param confirm is set and evaluates to true, group specified by GET
+	 * param group_id is removed, otherwise confirmation form is displayed.
+	 *
+	 * @return mixed confirm form markup or void
+	 */
+	public function ___executeRemove() {
+		
+		Wire::setFuel('processHeadline', $this->_('Remove Group'));
+		$this->breadcrumbs->add(new Breadcrumb('../', $this->_('User Groups')));
+
+		$group_id = (int) $this->input->get->group_id;
+		if (!$group_id) throw new WireException("Invalid group id");
+
+		$group = $this->pages->get("template=user-group, id=$group_id");
+		if (!$group->id) throw new WireException("Invalid group");
+
+		if ($this->input->get->confirm) {
+			
+			// remove users from group (or group from users, whatever)
+			foreach ($this->users->find("user_groups=$group") as $user) {
+				$user->user_groups->remove($group);
+				$user->save();
+			}
+			
+			// remove group (grab title for message use first, though)
+			$group_title = $group->title;
+			$group->delete();
+			
+			// set message and redirect to groups page
+			$this->message($this->_("Group Removed:") . " " . $group_title);
+			$this->session->redirect("../");
+			
+		} else {
+
+			// output confirmation form to avoid accidentally removing groups
+			$form = $this->modules->get("InputfieldForm");
+			$form->method = "GET";
+			$form->action = ".";
+
+			$field = $this->modules->get("InputfieldHidden");
+			$field->attr('name', 'group_id');
+			$field->attr('value', $group_id);
+			$form->add($field);
+			
+			$field = $this->modules->get("InputfieldCheckbox");
+			$field->attr('name', 'confirm');
+			$field->attr('value', 1);
+			$field->label = sprintf($this->_("Permanently remove group %s"), $group->title);
+			$field->description = $this->_("Once removed, groups cannot be recovered. Members of removed group are not affected (other than being removed from said group).");
+			$form->add($field);
+			
+			$submit = $this->modules->get("InputfieldSubmit");
+			$submit->value = $this->_("Remove Group");
+			$form->add($submit);
+			
+			return $form->render();
+
+		}
+
 	}
 
 	/**
@@ -395,5 +458,4 @@ class ProcessUserGroups extends Process {
 		}
 
 	}
-
 }
