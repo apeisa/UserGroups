@@ -142,7 +142,7 @@ class UserGroupsHooks extends WireData implements Module {
 
 		if ( ! $accessPage->id) $accessPage = $this->pages->get(1);
 
-		$this->session->message("Access changed: $page->id => $accessPage->id");
+		$this->log->message("Access changed: $page->id => $accessPage->id");
 
 		$this->rebuild($page->id, $accessPage->id);
 
@@ -159,6 +159,7 @@ class UserGroupsHooks extends WireData implements Module {
 
  		$this->log->message("rebuild($parent_id: '" . $this->pages->get($parent_id)->path ."', $access_page_id: '" . $this->pages->get($access_page_id)->path . "')");
  		$insertions = array();
+ 		$deletions = array();
 		$parent_id = (int) $parent_id;
 		$access_page_id = (int) $access_page_id;
 
@@ -179,7 +180,10 @@ class UserGroupsHooks extends WireData implements Module {
 
 		$result = $this->db->query($sql); // QA
 
-		if($parent_id != $access_page_id) $insertions[$parent_id] = $access_page_id;
+		// make sure there is no row for pages managing access themselves,
+		// but there is one for pages inheriting access
+		if($parent_id == $access_page_id) $deletions[] = $parent_id;
+		else $insertions[$parent_id] = $access_page_id;
 
 		while ($row = $result->fetch_row()) {
 
@@ -218,9 +222,15 @@ class UserGroupsHooks extends WireData implements Module {
 				$sql .= "($id, $access_page_id),";
 			}
 			$sql = rtrim($sql, ",") . " " . "ON DUPLICATE KEY UPDATE data=VALUES(data) ";
-			$this->session->message($sql);
+			$this->log->message($sql);
 			$this->db->query($sql); // QA
 
+		}
+
+		if (count($deletions)) {
+			$sql = "DELETE FROM field_inherit_access WHERE pages_id IN(" . implode(',', $deletions) . ")";
+			$this->log->message($sql);
+			$this->db->query($sql);
 		}
 
 	}
