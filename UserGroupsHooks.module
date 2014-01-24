@@ -3,6 +3,15 @@
 class UserGroupsHooks extends WireData implements Module {
 
 	/**
+	 * @var Page Special group "Everyone"
+	 */
+	private $groupEveryone;
+	/**
+	 * @var Page Special group "Logged in users"
+	 */
+	private $groupLoggedIn;
+
+	/**
 	 * getModuleInfo is a module required by all modules to tell ProcessWire about them
 	 *
 	 * @return array
@@ -35,8 +44,16 @@ class UserGroupsHooks extends WireData implements Module {
 		$groups = new PagesType($template, $parent->id);
 		Wire::setFuel('groups', $groups);
 
-		$this->addHookAfter("ProcessPageEdit::buildFormRoles", $this, 'whoCanAccessInfo');
+		// fetch special groups for later use (find(), viewable())
+		$this->groupEveryone = wire('groups')->get("everyone");
+		$this->groupLoggedIn = wire('groups')->get("logged");
 
+		// user is always a member of "Everyone"
+		// logged in status is handled case by case as that may change (at least in theory)
+		wire('user')->user_groups->add($this->groupEveryone);
+
+		// hooks (see function declarations for more information)
+		$this->addHookAfter("ProcessPageEdit::buildFormRoles", $this, 'whoCanAccessInfo');
 		$this->addHookAfter("Page::viewable", $this, 'viewable');
 		$this->addHookAfter("Page::editable", $this, 'editable');
 		$this->addHookAfter("Page::addable", $this, 'addable');
@@ -47,8 +64,6 @@ class UserGroupsHooks extends WireData implements Module {
 		$this->addHookAfter("Pages::moved", $this, 'moved');
 		$this->addHookAfter("Pages::trashed", $this, 'trashed');
 		$this->addHookAfter("Pages::added", $this, 'added');
-
-		//
 		$this->addHookBefore("ProcessPageAdd::getAllowedTemplates", $this, 'allowedTemplates');
 
 	}
@@ -332,11 +347,7 @@ class UserGroupsHooks extends WireData implements Module {
 		// get by id, skip always
 		if (is_numeric($selector)) return;
 
-		$everyone = $this->pages->get("template=user-group, name=everyone");
-		$logged = $this->pages->get("template=user-group, name=logged");
-
-		$user->user_groups->add($everyone);
-		if ($user->isLoggedIn()) $user->user_groups->add($logged);
+		if ($user->isLoggedIn()) $user->user_groups->add($this->groupLoggedIn);
 
 		$selector = $selector . ", view_groups|inherit_access.view_groups={$user->user_groups}";
 		$event->arguments(0, $selector);
@@ -358,16 +369,14 @@ class UserGroupsHooks extends WireData implements Module {
 		$accessPage = $this->getAccessPage($page);
 
 		// If our view_groups have "everyone", then no need for look further
-		$everyone = wire('groups')->get("everyone");
-		if ($accessPage->view_groups->has($everyone)) {
+		if ($accessPage->view_groups->has($this->groupEveryone)) {
 			$event->return = true;
 			return;
 		}
 
 		// If user is logged in and logged group is selected, then no need for look further
 		if ($user->isLoggedIn()) {
-			$logged = $user->user_groups->get("logged");
-			if ($accessPage->view_groups->has($logged)) {
+			if ($accessPage->view_groups->has($this->groupLoggedIn)) {
 				$event->return = true;
 				return;
 			}
