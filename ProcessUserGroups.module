@@ -131,7 +131,7 @@ class ProcessUserGroups extends Process {
 			foreach ($this->input->post->direct_users as $user_id) {
 				if (empty($user_id)) continue;
 				$user_id = trim($user_id, " ,");
-				if (substr($user_id, ',')) {
+				if (strpos($user_id, ',')) {
 					// For some reason pageListSelectMultiple returns array, but with only one item comma separating values (123,1234)
 					foreach (explode(",", $user_id) as $user_id) {
 						$u = wire('users')->get($user_id);
