@@ -10,7 +10,7 @@ class ProcessUserGroups extends Process {
 		return array(
 			'title' => __('User Groups', __FILE__),
 			'summary' => __('Manage user groups for ProcessWire for streamlined access management', __FILE__),
-			'version' => 2,
+			'version' => 3,
 			'author' => 'Antti Peisa, Niklas Lakanen, Teppo Koivula',
 			'href' => 'http://modules.processwire.com/',
 			'permission' => 'user-admin'
@@ -38,23 +38,24 @@ class ProcessUserGroups extends Process {
 	/**
 	 * This function is executed when a page with your Process assigned is accessed.
 	 *
-	 * This can be seen as your main or index function. You'll probably want to replace
-	 * everything in this function.
+	 * Output table of all currently existing groups along with member count and
+	 * actions, such as "remove".
 	 *
+	 * @return string rendered table
 	 */
 	public function ___execute() {
 
 		$group_str = $this->_('Group');
-		$usersCount_str = $this->_("Users");
+		$users_count_str = $this->_("Users");
 		$remove_str = $this->_('Remove');
 
 		$table = $this->modules->get("MarkupAdminDataTable");
 		$table->setEncodeEntities(false);
 		$table->headerRow(array(
 			$group_str,
-			$usersCount_str,
+			$users_count_str,
 			$remove_str
-			));
+		));
 
 		foreach ($this->page->children as $group) {
 
@@ -73,8 +74,7 @@ class ProcessUserGroups extends Process {
 			} else {
 				$table->row(array(
 					$group->title  => "./edit/?group_id=" . $group->id,
-					//Tähän ryhmän jäsenten lkm
-					"",
+					wire('users')->count("user_groups={$group->id}"),
 					$remove_str => "./remove/?group_id=" . $group->id
 				));
 			}
