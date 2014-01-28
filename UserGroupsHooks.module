@@ -21,7 +21,7 @@ class UserGroupsHooks extends WireData implements Module {
 
 		return array(
 			'title' => 'User Groups Hooks',
-			'version' => 1,
+			'version' => 10,
 			'summary' => 'Autoload module that attachs all the hooks required by User Groups.',
 			'singular' => true,
 			'autoload' => true,
@@ -49,16 +49,12 @@ class UserGroupsHooks extends WireData implements Module {
 		$this->groupLoggedIn = wire('groups')->get("logged");
 
 		// user is always a member of "Everyone"
-		// logged in status is handled case by case as that may change (at least in theory)
 		wire('user')->user_groups->add($this->groupEveryone);
+		// logged in status could change during request, but I think it's ok to require a redirect afterwards
+		if (wire('user')->isLoggedIn()) wire('user')->user_groups->add($this->groupLoggedIn);
 
 		// hooks (see function declarations for more information)
 		$this->addHookAfter("ProcessPageEdit::buildFormRoles", $this, 'whoCanAccessInfo');
-		$this->addHookAfter("Page::viewable", $this, 'viewable');
-		$this->addHookAfter("Page::editable", $this, 'editable');
-		$this->addHookAfter("Page::addable", $this, 'addable');
-		$this->addHookAfter("Page::moveable", $this, 'moveable');
-		$this->addHookAfter("Page::sortable", $this, 'sortable');
 		$this->addHookBefore("Pages::find", $this, 'find');
 		$this->addHookAfter("Pages::saveReady", $this, 'save');
 		$this->addHookAfter("Pages::moved", $this, 'moved');
@@ -66,6 +62,150 @@ class UserGroupsHooks extends WireData implements Module {
 		$this->addHookAfter("Pages::added", $this, 'added');
 		$this->addHookBefore("ProcessPageAdd::getAllowedTemplates", $this, 'allowedTemplates');
 
+		$this->addHookBefore("User::hasPagePermission", $this, 'hasPagePermission');
+		$this->addHookBefore("User::hasTemplatePermission", $this, 'hasTemplatePermission');
+	}
+
+	/**
+	 * Does this user have the given permission?
+	 *
+	 * Replacement for User::hasPagePermission() to use page based access control instead of template based one.
+	 *
+	 * (These describe $event->arguments and $event->return!)
+	 * @param string|Permission
+	 * @param Page $page Optional page to check against
+	 * @return bool
+	 *
+	 */
+	public function hasPagePermission($event) {
+		$user = $event->object;
+		$name = $event->arguments[0];
+		$page = null;
+		if (count($event->arguments) > 1) $page = $event->arguments[1];
+
+#		$this->log->message("hasPagePermission: $name" . ($page ? " @ $page->path ($page->id)":""));
+
+		// let core handle
+		if ($user->isSuperuser()) {
+			return;
+		}
+
+		if ($name instanceof Page) {
+			$name = "$name";
+		} else {
+			// page-add and page-create don't actually exist in the DB, so we substitute page-edit for them
+			if (in_array($name, array('page-add', 'page-create'))) $name = 'page-edit';
+		}
+
+
+		// these are the permissions handled by this module
+		$editPermissions = array('page-edit', 'page-delete', 'page-move', 'page-sort');
+		$viewPermissions = array('page-view');
+		if (in_array($name, $editPermissions)) {
+
+
+			// find pages defining edit access for any of the groups this user is a member of
+			$selector = "edit_groups={$this->user->user_groups}";
+
+			// limit to a specific page if one given
+			if ($page && $page->id) $selector .= ", id=" . $this->getAccessPage($page);
+
+			if ($this->pages->count($selector)) {
+				$event->return = true;
+			} else {
+				$event->return = false;
+			}
+
+#			$this->log->message("** edit / $name: " . ($event->return ? "ok":"nope"));
+			$event->replace = true;
+			return;
+
+		} elseif (in_array($name, $viewPermissions)) {
+
+			// find pages defining view access for any of the groups this user is a member of
+			$selector = "view_groups={$this->user->user_groups}";
+
+			// limit to a specific page if one given
+			if ($page && $page->id) $selector .= ", id=" . $this->getAccessPage($page);
+
+			if ($this->pages->count($selector)) {
+				$event->return = true;
+			} else {
+				$event->return = false;
+			}
+
+#			$this->log->message("** view: " . ($event->return ? "ok":"nope"));
+			$event->replace = true;
+			return;
+
+			// *alternative* way to check page-view when $page is defined
+			// (formed viewable() --> not suitable as-is)
+
+			// 	$accessPage = $this->getAccessPage($page);
+
+			// 	// If our view_groups have "everyone", then no need for look further
+			// 	if ($accessPage->view_groups->has($this->groupEveryone)) {
+			// 		$event->return = true;
+			// 		return;
+			// 	}
+
+			// 	// If user is logged in and logged group is selected, then no need for look further
+			// 	if ($user->isLoggedIn()) {
+			// 		if ($accessPage->view_groups->has($this->groupLoggedIn)) {
+			// 			$event->return = true;
+			// 			return;
+			// 		}
+			// 	}
+
+			// 	// If we haven't figured the view access yet, then just loop all the groups and look for our hero
+			// 	foreach ($accessPage->view_groups as $group) {
+			// 		if ($user->user_groups->has($group)) {
+			// 			$event->return = true;
+			// 			return;
+			// 		}
+			// 	}
+
+		} elseif ($page and $page->id) {
+			// TODO: page-template, page-lock, page-publish --> check users roles for these
+			//       (can't fall back to core as there template access kicks in again)
+			//       --> this module is not resposible for admin-level permissions
+			$this->log->message("UNSUPPORTED page permission: " . $name . " @ " . $page->id . " / " . $page->path);
+		}
+
+		$this->log->message("Page permission for core: " . $name . " @ " . ($page ? $page->id . " / " . $page->path : ""));
+		// let core handle
+		return;
+	}
+
+	/**
+	 * Does this user have the given permission on the given template?
+	 *
+	 * Replacement for User::hasTemplatePermission() to use page based access control instead of template based one.
+	 *
+	 * (These describe $event->arguments and $event->return!)
+	 * @param string $name Permission name
+	 * @param Template|int|string $template Template object, name or ID
+	 * @return bool
+	 *
+	 */
+	public function hasTemplatePermission($event) {
+
+		$user = $event->object;
+		$name = $event->arguments[0];
+		$template = $event->arguments[1];
+
+#		$this->log->message("hasTemplatePermission: " . $name . " @ " . $template);
+
+		// with this module, there is no such thing as "template permission"
+		// instead it's page permission without page context (or unsupported atm =)
+		$tplEditPermissions = array('page-edit', 'page-create', 'page-add');
+		if (in_array($name, $tplEditPermissions)) {
+			$event->setArgument(1, null);
+			$this->hasPagePermission($event);
+		} else {
+			$this->log->message("UNSUPPORTED tpl permission: " . $name . " @ " . $template->id . " / " . $template->name);
+		}
+		return;
 	}
 
 	/**
@@ -80,10 +220,13 @@ class UserGroupsHooks extends WireData implements Module {
 
 		$page = $event->arguments[0];
 
+		// skip pages under admin
+		if ($page->parents()->has($this->pages->get($this->config->adminRootPageID))) return;
+
 		$this->log->message("trashed: $page->id @ $page->path");
 
 		$deletions = array($page->id);
-		foreach($this->pages->find("has_parent=$page, include=all") as $p) $deletions[] = $p->id;
+		foreach ($this->pages->find("has_parent=$page, include=all") as $p) $deletions[] = $p->id;
 
 		if (count($deletions)) {
 			$sql = "DELETE FROM field_inherit_access WHERE pages_id IN(" . implode(',', $deletions) . ")";
@@ -99,6 +242,9 @@ class UserGroupsHooks extends WireData implements Module {
 	public function added($event) {
 
 		$page = $event->arguments[0];
+
+		// skip pages under admin
+		if ($page->parents()->has($this->pages->get($this->config->adminRootPageID))) return;
 
 		// find out where access is inherited from (from direct parent or somewhere further away)
 		$accessPage = $this->getAccessPage($page->parent);
@@ -116,6 +262,9 @@ class UserGroupsHooks extends WireData implements Module {
 	public function moved($event) {
 
 		$page = $event->arguments[0];
+
+		// skip pages under admin
+		if ($page->parents()->has($this->pages->get($this->config->adminRootPageID))) return;
 
 		// don't mind trashed pages here
 		if ($page->isTrash()) return;
@@ -176,8 +325,6 @@ class UserGroupsHooks extends WireData implements Module {
 		// manage access here
 		if ($page->manage_access == 1) {
 			$accessPage = $page;
-			// TODO: what is this for? seems like it's not needed!
-			// $page->setTrackChanges();
 		// inherit access
 		} else {
 			$accessPage = $page->parent("manage_access=1");
@@ -226,7 +373,7 @@ class UserGroupsHooks extends WireData implements Module {
 
 		// make sure there is no row for pages managing access themselves,
 		// but there is one for pages inheriting access
-		if($parent_id == $access_page_id) $deletions[] = $parent_id;
+		if ($parent_id == $access_page_id) $deletions[] = $parent_id;
 		else $insertions[$parent_id] = $access_page_id;
 
 		while ($row = $result->fetch_row()) {
@@ -244,7 +391,7 @@ class UserGroupsHooks extends WireData implements Module {
 			$result2 = $this->db->query($sql2);
 
 			if ($result2->num_rows > 0) {
-				if($numChildren) $this->rebuild($id, $id);
+				if ($numChildren) $this->rebuild($id, $id);
 			} else {
 				$insertions[$id] = $access_page_id;
 				// if there are children, rebuild any of them with this access template where applicable
@@ -347,107 +494,9 @@ class UserGroupsHooks extends WireData implements Module {
 		// get by id, skip always
 		if (is_numeric($selector)) return;
 
-		if ($user->isLoggedIn()) $user->user_groups->add($this->groupLoggedIn);
-
 		$selector = $selector . ", view_groups|inherit_access.view_groups={$user->user_groups}";
 		$event->arguments(0, $selector);
 	}
-
-	public function viewable($event) {
-		// get the vars we need to check access
-		$page = $event->object;
-		$user = $this->user;
-
-		// no need to check anything if it's the superuser
-		if ($user->isSuperuser()) return;
-
-		// don't allow this access control on system templates
-		if ($page->template->flags & Template::flagSystem) return;
-
-		if ($page->is(Page::statusUnpublished)) return;
-
-		$accessPage = $this->getAccessPage($page);
-
-		// If our view_groups have "everyone", then no need for look further
-		if ($accessPage->view_groups->has($this->groupEveryone)) {
-			$event->return = true;
-			return;
-		}
-
-		// If user is logged in and logged group is selected, then no need for look further
-		if ($user->isLoggedIn()) {
-			if ($accessPage->view_groups->has($this->groupLoggedIn)) {
-				$event->return = true;
-				return;
-			}
-		}
-
-		// If we haven't figured the view access yet, then just loop all the groups and look for our hero
-		foreach ($accessPage->view_groups as $group) {
-			if ($user->user_groups->has($group)) {
-				$event->return = true;
-				return;
-			}
-		}
-
-		// Better luck next time, buddy
-		$event->return = false;
-	}
-
-	public function editable($event) {
-		$page = $event->object;
-		$user = wire('user');
-
-		$result = false;
-
-		if ($user->isSuperuser()) {
-			$event->return = true;
-			return;
-		}
-
-		foreach ($user->user_groups as $g) {
-			if ($this->getAccessPage($page)->edit_groups->has($g)) $result = true;
-		}
-
-		$event->return = $result;
-
-	}
-
-	// If page is editable, it is also moveable
-	public function moveable($event) {
-		$page = $event->object;
-		$user = wire('user');
-
-		if ($page->editable()) $event->return = true;
-		else $event->return = false;
-	}
-
-	public function addable($event) {
-		$page = $event->object;
-		$user = wire('user');
-
-		if ($page->editable()) $event->return = true;
-		else $event->return = false;
-	}
-
-	public function sortable($event) {
-
-		$page = $event->object;
-		$user = wire('user');
-
-		if ($page->parent->editable()) $event->return = true;
-		else $event->return = false;
-	}
-
-#	public function users($event) {
-#		$page = $event->object;
-#		if ($page->template != "user-group") return;
-#
-#		$users = wire('users')->find("roles={$page->roles}");
-#		$users->import($page->direct_users);
-#
-#		$event->return = $users;
-#	}
 
 	/**
 	 * Get the Page defining access to the given page.
@@ -460,7 +509,7 @@ class UserGroupsHooks extends WireData implements Module {
 	 * @return Page
 	*/
 	public function getAccessPage($page) {
-		if($page->manage_access) return $page;
+		if ($page->manage_access) return $page;
 		return $page->inherit_access;
 	}
 
@@ -474,7 +523,7 @@ class UserGroupsHooks extends WireData implements Module {
 
 		$page = wire('pages')->get($id);
 
-		if( ! $page->id) return;
+		if ( ! $page->id) return;
 		if ($page->is(Page::statusSystem)) return;
 		if ($page->template->name == "admin") return;
 
@@ -513,7 +562,7 @@ class UserGroupsHooks extends WireData implements Module {
 		$wrapper->add($viewable);
 		$wrapper->add($editable);
 
-		if($accessPage->id != $page->id) {
+		if ($accessPage->id != $page->id) {
 			$wrapper->notes = $this->_("These rules are inherited from page **") . $accessPage->title . "** (" . $accessPage->url . ")";
 		} else {
 			$wrapper->notes = $this->_("These rules have been defined on this very page.");
