@@ -13,7 +13,7 @@ class ProcessUserGroups extends Process {
 			'version' => 2,
 			'author' => 'Antti Peisa, Niklas Lakanen, Teppo Koivula',
 			'href' => 'http://modules.processwire.com/',
-			'permission' => 'page-edit'
+			'permission' => 'user-admin'
 		);
 	}
 
