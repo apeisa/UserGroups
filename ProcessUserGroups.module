@@ -13,7 +13,8 @@ class ProcessUserGroups extends Process {
 			'version' => 4,
 			'author' => 'Antti Peisa, Niklas Lakanen, Teppo Koivula',
 			'href' => 'http://modules.processwire.com/',
-			'permission' => 'user-admin'
+			'permission' => 'user-admin',
+			'installs' => 'UserGroupsHooks'
 		);
 	}
 
@@ -471,6 +472,7 @@ class ProcessUserGroups extends Process {
 
 		$newpage = $this->pages->add('user-group', $page, 'everyone', array('title' => 'Everyone'));
 		$newpage->save();
+		$everyoneGroupId = $newpage->id;
 
 		$newpage = $this->pages->add('user-group', $page, 'logged', array('title' => 'Logged in users'));
 		$newpage->save();
@@ -478,6 +480,8 @@ class ProcessUserGroups extends Process {
 		// Lets activate the manage access for home page
 		$home = $this->pages->get(1);
 		$home->manage_access = 1;
+		// And let's give group "Everyone" view access to get things going
+		$home->view_groups->add($everyoneGroupId);
 		$home->save();
 
 	}
