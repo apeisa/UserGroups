@@ -10,7 +10,7 @@ class ProcessUserGroups extends Process {
 		return array(
 			'title' => __('User Groups', __FILE__),
 			'summary' => __('Manage user groups for ProcessWire for streamlined access management', __FILE__),
-			'version' => 3,
+			'version' => 4,
 			'author' => 'Antti Peisa, Niklas Lakanen, Teppo Koivula',
 			'href' => 'http://modules.processwire.com/',
 			'permission' => 'user-admin'
@@ -45,9 +45,18 @@ class ProcessUserGroups extends Process {
 	 */
 	public function ___execute() {
 
+		$out = "";
 		$group_str = $this->_('Group');
 		$users_count_str = $this->_("Users");
 		$remove_str = $this->_('Remove');
+
+		// Grab filter form
+		$form = $this->getFilterForm();
+		if ($form instanceof InputfieldFieldset || $form instanceof InputfieldForm) {
+			$out .= $form->render();
+		} else if ($filters) {
+			$out .= $form;
+		}
 
 		$table = $this->modules->get("MarkupAdminDataTable");
 		$table->setEncodeEntities(false);
@@ -57,7 +66,10 @@ class ProcessUserGroups extends Process {
 			$remove_str
 		));
 
-		foreach ($this->page->children as $group) {
+		// Build filter selector (if filter form exists)
+		$selector = $form ? $this->getFilterSelector() : null;
+
+		foreach ($this->page->children($selector) as $group) {
 
 			if ($group->name == "everyone") {
 				$table->row(array(
@@ -83,7 +95,9 @@ class ProcessUserGroups extends Process {
 
 		$table->action(array($this->_('Add New Group') => 'add/'));
 
-		return $table->render();
+		$out .= $table->render();
+
+		return $out;
 	}
 
 	public function ___executeAdd() {
@@ -282,6 +296,64 @@ class ProcessUserGroups extends Process {
 			return $form->render();
 
 		}
+
+	}
+
+	/**
+	 * Build filter forms for execute method
+	 *
+	 * This being a method of it's own helps us both keep this separate from
+	 * main execute method, but also makes it possible for external code to
+	 * alter return value (add/remove fields etc.) based on their needs.
+	 *
+	 * @return mixed InputfieldFieldset by default, but can be altered by hooks
+	 */
+	public function ___getFilterForm() {
+		
+		$fields = $this->modules->get("InputfieldFieldset");
+
+		$form = $this->modules->get("InputfieldForm");
+		$form->attr('method', 'get');
+		$form->attr('id', 'userSearch');
+		$form->label = $this->_("Filter Groups");
+		if (!$this->input->get->search) {
+			$form->collapsed = Inputfield::collapsedYes;
+		}
+		
+		$field = $this->modules->get("InputfieldText");
+		$field->attr('name', 'search');
+		$field->label = $this->_("Search");
+		if ($this->input->get->search) {
+			$this->input->whitelist('search', $this->input->get->search);
+			$field->attr('value', $this->sanitizer->entities($this->input->get->search));
+		}
+		$form->add($field);
+		
+		$field = $this->modules->get("InputfieldSubmit");
+		$field->attr('value', $this->_("Search"));
+		$form->add($field);
+		
+		$fields->add($form);
+		
+		return $fields;
+		
+	}
+	
+	/**
+	 * Build selector for execute method
+	 *
+	 * @return string selector string
+	 */
+	public function ___getFilterSelector() {
+
+		$selector = "";
+		
+		if ($this->input->whitelist->search) {
+			$search = $this->sanitizer->selectorValue($this->input->whitelist->search);
+			$selector = "name%=$search";
+		}
+
+		return $selector;
 
 	}
 
