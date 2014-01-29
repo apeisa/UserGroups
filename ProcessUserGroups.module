@@ -10,7 +10,7 @@ class ProcessUserGroups extends Process {
 		return array(
 			'title' => __('User Groups', __FILE__),
 			'summary' => __('Manage user groups for ProcessWire for streamlined access management', __FILE__),
-			'version' => 4,
+			'version' => 5,
 			'author' => 'Antti Peisa, Niklas Lakanen, Teppo Koivula',
 			'href' => 'http://modules.processwire.com/',
 			'permission' => 'user-admin',
@@ -326,7 +326,7 @@ class ProcessUserGroups extends Process {
 		$field->label = $this->_("Search");
 		if ($this->input->get->search) {
 			$this->input->whitelist('search', $this->input->get->search);
-			$field->attr('value', $this->sanitizer->entities($this->input->get->search));
+			$field->attr('value', $this->sanitizer->text($this->input->get->search));
 		}
 		$form->add($field);
 		
@@ -351,7 +351,7 @@ class ProcessUserGroups extends Process {
 		
 		if ($this->input->whitelist->search) {
 			$search = $this->sanitizer->selectorValue($this->input->whitelist->search);
-			$selector = "name%=$search";
+			$selector = "title%=$search";
 		}
 
 		return $selector;
