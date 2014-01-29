@@ -132,6 +132,10 @@ class UserGroupsHooks extends WireData implements Module {
 
 	}
 
+	/**
+	 * Page saved: sanity checks and rebuild as needed.
+	 *
+	 */
 	public function save($event) {
 
 		$page = $event->arguments[0];
@@ -157,6 +161,10 @@ class UserGroupsHooks extends WireData implements Module {
 		if ( ! count($page->view_groups) && ! count($page->edit_groups)) {
 			$page->manage_access = 0;
 		}
+
+		// front page has to have manage_access turned on at all times
+		// frontend should enforce this, here it's a fatal error
+		if($page->id == 1 && $page->manage_access == 0) throw new WireException("Front page must define access at all times");
 
 		// DEBUG
 		$this->log->message("view groups changed: "   . $page->isChanged('view_groups') . ", now: " . $page->view_groups);
