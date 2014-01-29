@@ -10,7 +10,7 @@ class ProcessUserGroups extends Process {
 		return array(
 			'title' => __('User Groups', __FILE__),
 			'summary' => __('Manage user groups for ProcessWire for streamlined access management', __FILE__),
-			'version' => 5,
+			'version' => 6,
 			'author' => 'Antti Peisa, Niklas Lakanen, Teppo Koivula',
 			'href' => 'http://modules.processwire.com/',
 			'permission' => 'user-admin'
@@ -86,7 +86,7 @@ class ProcessUserGroups extends Process {
 			} else {
 				$table->row(array(
 					$group->title  => "./edit/?group_id=" . $group->id,
-					wire('users')->count("user_groups={$group->id}"),
+					wire('users')->find("user_groups={$group->id}, limit=2")->getTotal(),
 					$remove_str => "./remove/?group_id=" . $group->id
 				));
 			}
