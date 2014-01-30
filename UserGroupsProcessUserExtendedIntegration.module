@@ -1,0 +1,114 @@
+<?php
+
+/**
+ * User Groups - Process User Extended Integration
+ * 
+ * This module provides features that connect User Groups modules with Process
+ * User Extended. Said features are required by neither module and in order to
+ * keep both as lean as possible separated into external "integration module".
+ *
+ * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
+ *
+ */
+class UserGroupsProcessUserExtendedIntegration extends WireData implements Module {
+
+	/**
+	 * getModuleInfo is a module required by all modules to tell ProcessWire about them
+	 *
+	 * @return array
+	 *
+	 */
+	public static function getModuleInfo() {
+
+		return array(
+			'title' => 'Process User Extended Integration for User Groups',
+			'version' => 100,
+			'summary' => 'Integrates User Groups and Process User Extended.',
+			'singular' => true,
+			'autoload' => true,
+			'requires' => array('ProcessUserGroups', 'ProcessUserExtended')
+		);
+	}
+
+	/**
+	 * Initialize the module
+	 *
+	 * ProcessWire calls this when the module is loaded. For 'autoload' modules, this will be called
+	 * when ProcessWire's API is ready. As a result, this is a good place to attach hooks.
+	 *
+	 */
+	public function init() {
+
+		// hooks (see function declarations for more information)
+		$this->addHookAfter("ProcessUserExtended::getFilterForm", $this, 'hookGetFilterForm');
+		$this->addHookAfter("ProcessUserExtended::getFilterSelector", $this, 'hookGetFilterSelector');
+
+	}
+
+    /**
+     * Hook into Process User Extended getFilterForm()
+     *
+     * Replace roles field with groups field.
+     *
+     * @param HookEvent $event
+     */
+	public function hookGetFilterForm(HookEvent $event) {
+		
+		$fields = $event->return;
+
+		$form = $fields->get(0);
+        if ($this->input->get->groups) {
+            $form->collapsed = Inputfield::collapsedNo;
+        }
+
+		$field = $this->modules->get("InputfieldCheckboxes");
+		$field->attr('name', 'groups');
+		$field->optionColumns = 5;
+		foreach(wire('groups') as $group) {
+			if (in_array($group->name, array("everyone", "logged"))) continue;
+			$attrs = array();
+			$this->input->whitelist("groups", $this->input->get->groups);
+			if (is_array($this->input->get->groups)) {
+				if(in_array($group->name, $this->input->get->groups)) {
+					$attrs['selected'] = 'selected';
+				}
+			}
+			$field->addOption($group->name, $group->get('title|name'), $attrs);
+		}
+		$field->label = $this->_("Filter by group");
+
+		$submit = $form->get("submit");
+		$form->insertBefore($field, $submit);
+		
+		$event->return = $fields;
+
+	}
+
+    /**
+     * Hook into Process User Extended getFilterSelector()
+     *
+     * Add groups to selector instead of roles.
+     *
+     * @param HookEvent $event
+     */
+    public function hookGetFilterSelector(HookEvent $event) {
+        
+        $selector = $event->return;
+
+		if ($this->input->get->groups) {
+			$groups = new PageArray;
+			foreach($this->input->get->groups as $groupName) {
+                $group = $this->groups->get($groupName);
+                if ($group->id) $groups->add($group);
+			}
+			if ($groups->count()) {
+                if ($selector) $selector .= ", ";
+                $selector .= "user_groups=$groups";
+            }
+		}
+
+        $event->return = $selector;
+        
+    }
+
+}
