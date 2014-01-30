@@ -45,21 +45,21 @@ class UserGroupsProcessUserExtendedIntegration extends WireData implements Modul
 
 	}
 
-    /**
-     * Hook into Process User Extended getFilterForm()
-     *
-     * Replace roles field with groups field.
-     *
-     * @param HookEvent $event
-     */
+	/**
+	 * Hook into Process User Extended getFilterForm()
+	 *
+	 * Replace roles field with groups field.
+	 *
+	 * @param HookEvent $event
+	 */
 	public function hookGetFilterForm(HookEvent $event) {
 		
 		$fields = $event->return;
 
 		$form = $fields->get(0);
-        if ($this->input->get->groups) {
-            $form->collapsed = Inputfield::collapsedNo;
-        }
+		if ($this->input->get->groups) {
+			$form->collapsed = Inputfield::collapsedNo;
+		}
 
 		$field = $this->modules->get("InputfieldCheckboxes");
 		$field->attr('name', 'groups');
@@ -84,31 +84,31 @@ class UserGroupsProcessUserExtendedIntegration extends WireData implements Modul
 
 	}
 
-    /**
-     * Hook into Process User Extended getFilterSelector()
-     *
-     * Add groups to selector instead of roles.
-     *
-     * @param HookEvent $event
-     */
-    public function hookGetFilterSelector(HookEvent $event) {
-        
-        $selector = $event->return;
+	/**
+	 * Hook into Process User Extended getFilterSelector()
+	 *
+	 * Add groups to selector instead of roles.
+	 *
+	 * @param HookEvent $event
+	 */
+	public function hookGetFilterSelector(HookEvent $event) {
+		
+		$selector = $event->return;
 
 		if ($this->input->get->groups) {
 			$groups = new PageArray;
 			foreach($this->input->get->groups as $groupName) {
-                $group = $this->groups->get($groupName);
-                if ($group->id) $groups->add($group);
+				$group = $this->groups->get($groupName);
+				if ($group->id) $groups->add($group);
 			}
 			if ($groups->count()) {
-                if ($selector) $selector .= ", ";
-                $selector .= "user_groups=$groups";
-            }
+				if ($selector) $selector .= ", ";
+				$selector .= "user_groups=$groups";
+			}
 		}
 
-        $event->return = $selector;
-        
-    }
+		$event->return = $selector;
+		
+	}
 
 }
