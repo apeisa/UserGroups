@@ -485,6 +485,9 @@ class UserGroupsHooks extends WireData implements Module {
 		$user = wire('user');
 		$page = wire('page');
 
+#		$this->log->message("find()");
+#		$this->log->message("** original selector: " . $event->arguments[0]);
+
 		if ( ! isset($page)) return;
 
 		if ($page->template->name == "admin") return;
@@ -502,8 +505,12 @@ class UserGroupsHooks extends WireData implements Module {
 		// get by id, skip always
 		if (is_numeric($selector)) return;
 
+		// check_access=0 given, skip always
+		if (preg_match("/\bcheck_access\s*=\s*0\b/", $selector)) return;
+
 		$selector = $selector . ", view_groups|inherit_access.view_groups={$user->user_groups}";
 		$event->arguments(0, $selector);
+#		$this->log->message("** changed selector to: " . $selector);
 	}
 
 	/**
