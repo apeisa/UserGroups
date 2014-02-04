@@ -151,7 +151,7 @@ class UserGroupsHooks extends WireData implements Module {
 
 
 			// find pages defining edit access for any of the groups this user is a member of
-			$selector = "edit_groups={$this->user->user_groups}";
+			$selector = "edit_groups={$this->user->user_groups}, include=all";
 
 			// limit to a specific page if one given
 			if ($page && $page->id) $selector .= ", id=$accessPage";
@@ -169,7 +169,7 @@ class UserGroupsHooks extends WireData implements Module {
 		} elseif (in_array($name, $viewPermissions)) {
 
 			// find pages defining view access for any of the groups this user is a member of
-			$selector = "view_groups={$this->user->user_groups}";
+			$selector = "view_groups={$this->user->user_groups}, include=hidden";
 
 			// limit to a specific page if one given
 			if ($page && $page->id) $selector .= ", id=$accessPage";
