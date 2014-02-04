@@ -401,7 +401,7 @@ class ProcessUserGroups extends Process {
 			$f->name = "user_groups";
 			$f->label = "User Groups";
 			$f->inputfield = 'InputfieldAsmSelect';
-			$f->findPagesSelector = "template=user-group, name!=everyone|logged";
+			$f->findPagesSelector = "template=user-group, name!=everyone|logged, include=all";
 			$f->save();
 		}
 		$ufg = $this->fieldgroups->get("user");
@@ -445,7 +445,7 @@ class ProcessUserGroups extends Process {
 			$f->label = "Edit Groups";
 			$f->description = "Groups that can edit this page";
 			$f->inputfield = "InputfieldAsmSelect";
-			$f->findPagesSelector = "template=user-group, name!=everyone|logged";
+			$f->findPagesSelector = "template=user-group, name!=everyone|logged, include=all";
 			$f->labelFieldName = "title";
 			$f->flags = Field::flagGlobal;
 			$f->columnWidth = 50;
