@@ -10,6 +10,10 @@ class UserGroupsHooks extends WireData implements Module {
 	 * @var Page Special group "Logged in users"
 	 */
 	private $groupLoggedIn;
+	/**
+	 * @var Field Field "manage_access" for testing templates
+	 */
+	private $fieldManageAccess;
 
 	/**
 	 * getModuleInfo is a module required by all modules to tell ProcessWire about them
@@ -48,6 +52,9 @@ class UserGroupsHooks extends WireData implements Module {
 		$this->groupEveryone = wire('groups')->get("everyone");
 		$this->groupLoggedIn = wire('groups')->get("logged");
 
+		// fetch "manage_access" field for later use (getAccessPage())
+		$this->fieldManageAccess = wire('fields')->get('manage_access');
+
 		// user is always a member of "Everyone"
 		wire('user')->user_groups->add($this->groupEveryone);
 		// logged in status could change during request, but I think it's ok to require a redirect afterwards
@@ -64,6 +71,39 @@ class UserGroupsHooks extends WireData implements Module {
 
 		$this->addHookBefore("User::hasPagePermission", $this, 'hasPagePermission');
 		$this->addHookBefore("User::hasTemplatePermission", $this, 'hasTemplatePermission');
+
+		$this->addHookBefore("Page::isPublic", $this, 'isPublic');
+	}
+
+	/**
+	 * Is this page public and viewable by all?
+	 *
+	 * This is a state that persists regardless of user, so has nothing to do with the current user.
+	 * To be public, the page must be published and have view access for group "everyone".
+	 *
+	 * (These describe $event->arguments and $event->return!)
+	 * @return bool True if public, false if not
+	 *
+	 */
+	public function isPublic($event) {
+		$page = $event->object;
+
+		$accessPage = $this->getAccessPage($page);
+
+		// we're done if page based access is not in use
+		if ( ! $accessPage ) return;
+
+		// replace original, default to false
+		$event->replace = true;
+		$event->return = false;
+
+		// page not published --> not public
+		if($this->status >= Page::statusUnpublished) return;
+
+		// page is public if view_groups includes "everyone"
+		if ($accessPage->view_groups->has($this->groupEveryone)) {
+			$event->return = true;
+		}
 	}
 
 	/**
@@ -84,6 +124,12 @@ class UserGroupsHooks extends WireData implements Module {
 		if (count($event->arguments) > 1) $page = $event->arguments[1];
 
 #		$this->log->message("hasPagePermission: $name" . ($page ? " @ $page->path ($page->id)":""));
+
+		if($page && $page->id) {
+			$accessPage = $this->getAccessPage($page);
+			// we're done if page based access is not in use
+			if ( ! $accessPage ) return;
+		}
 
 		// let core handle
 		if ($user->isSuperuser()) {
@@ -108,7 +154,7 @@ class UserGroupsHooks extends WireData implements Module {
 			$selector = "edit_groups={$this->user->user_groups}";
 
 			// limit to a specific page if one given
-			if ($page && $page->id) $selector .= ", id=" . $this->getAccessPage($page);
+			if ($page && $page->id) $selector .= ", id=$accessPage";
 
 			if ($this->pages->count($selector)) {
 				$event->return = true;
@@ -126,7 +172,7 @@ class UserGroupsHooks extends WireData implements Module {
 			$selector = "view_groups={$this->user->user_groups}";
 
 			// limit to a specific page if one given
-			if ($page && $page->id) $selector .= ", id=" . $this->getAccessPage($page);
+			if ($page && $page->id) $selector .= ", id=$accessPage";
 
 			if ($this->pages->count($selector)) {
 				$event->return = true;
@@ -249,6 +295,9 @@ class UserGroupsHooks extends WireData implements Module {
 		// find out where access is inherited from (from direct parent or somewhere further away)
 		$accessPage = $this->getAccessPage($page->parent);
 
+		// we're done if page based access is not in use
+		if ( ! $accessPage ) return;
+
 		$this->log->message("added: $page->id @ $page->path (access defaults to $accessPage->id @ $accessPage->path)");
 		// rebuild - just this new page actually
 		$this->rebuild($page->id, $accessPage->id);
@@ -290,7 +339,7 @@ class UserGroupsHooks extends WireData implements Module {
 		$page = $event->arguments[0];
 
 		// If page doesn't have manage_access field at all, no need to continue
-		if ( ! $page->template->hasField('manage_access')) return;
+		if ( ! $page->template->hasField($this->fieldManageAccess)) return;
 
 		// If page has just been added and has no id yet, no need to continue
 		if ( ! $page->id) return;
@@ -521,9 +570,12 @@ class UserGroupsHooks extends WireData implements Module {
 	 *
 	 * @param Page $page
 	 *
-	 * @return Page
+	 * @return Page|false Page defining access or false if this page follows template based rules
 	*/
 	public function getAccessPage($page) {
+		// If page doesn't have manage_access field at all, no need to continue
+		if ( ! $page->template->hasField($this->fieldManageAccess)) return false;
+
 		if ($page->manage_access) return $page;
 		return $page->inherit_access;
 	}
@@ -543,6 +595,16 @@ class UserGroupsHooks extends WireData implements Module {
 		if ($page->template->name == "admin") return;
 
 		$accessPage = $this->getAccessPage($page);
+
+		// we're done if page based access is not in use
+		if ( ! $accessPage ) return;
+
+		// this information is not to be seen if the user does not have permission to modify it
+		if ( ! $this->user->hasPermission('user-admin')) {
+			// empty InputField
+			$event->return = $this->modules->get("InputfieldMarkup");
+			return;
+		}
 
 		$viewable = $this->modules->get("InputfieldFieldset");
 		$viewable->label = $this->_("Page is viewable for these groups");
