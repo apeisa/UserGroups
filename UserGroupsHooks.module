@@ -537,6 +537,9 @@ class UserGroupsHooks extends WireData implements Module {
 #		$this->log->message("find()");
 #		$this->log->message("** original selector: " . $event->arguments[0]);
 
+		// this is basically an access check --> no need if user is a superuser
+		if ($user->isSuperuser()) return;
+
 		if ( ! isset($page)) return;
 
 		if ($page->template->name == "admin") return;
