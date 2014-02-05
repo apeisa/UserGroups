@@ -145,7 +145,7 @@ class UserGroupsHooks extends WireData implements Module {
 
 
 		// these are the permissions handled by this module
-		$editPermissions = array('page-edit', 'page-delete', 'page-move', 'page-sort');
+		$editPermissions = array('page-edit', 'page-delete', 'page-move', 'page-sort', 'page-clone', 'page-clone-tree');
 		$viewPermissions = array('page-view');
 		if (in_array($name, $editPermissions)) {
 
