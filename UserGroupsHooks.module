@@ -557,8 +557,13 @@ class UserGroupsHooks extends WireData implements Module {
 		// get by id, skip always
 		if (is_numeric($selector)) return;
 
-		// check_access=0 given, skip always
-		if (preg_match("/\bcheck_access\s*=\s*0\b/", $selector)) return;
+		// access checking should be disabled when (see wire/core/PageFinder.php for details):
+		// - "check_access=0" is given
+		// - "include=all" is given
+		// - option "findAll" has a truish value (for example PagesType derived classes have this set for all find() calls)
+		if (preg_match("/\bcheck_access=0\b/", $selector)) return;
+		if (preg_match("/\binclude=all\b/", $selector)) return;
+		if (isset($options['findAll']) && $options['findAll']) return;
 
 		$selector = $selector . ", view_groups|inherit_access.view_groups={$user->user_groups}";
 		$event->arguments(0, $selector);
