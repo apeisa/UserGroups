@@ -60,6 +60,11 @@ class UserGroupsHooks extends WireData implements Module {
 		// logged in status could change during request, but I think it's ok to require a redirect afterwards
 		if (wire('user')->isLoggedIn()) wire('user')->user_groups->add($this->groupLoggedIn);
 
+		// hooks for those with user-admin permission
+		if(wire('user')->hasPermission('user-admin')) {
+			$this->addHookAfter('ProcessPageEdit::buildForm', $this, 'accessTab');
+			$this->addHookBefore('ProcessPageEdit::processInput', $this, 'accessTabInput');
+		}
 		// hooks (see function declarations for more information)
 		$this->addHookAfter("ProcessPageEdit::buildFormRoles", $this, 'whoCanAccessInfo');
 		$this->addHookBefore("Pages::find", $this, 'find');
@@ -557,8 +562,13 @@ class UserGroupsHooks extends WireData implements Module {
 		// get by id, skip always
 		if (is_numeric($selector)) return;
 
-		// check_access=0 given, skip always
-		if (preg_match("/\bcheck_access\s*=\s*0\b/", $selector)) return;
+		// access checking should be disabled when (see wire/core/PageFinder.php for details):
+		// - "check_access=0" is given
+		// - "include=all" is given
+		// - option "findAll" has a truish value (for example PagesType derived classes have this set for all find() calls)
+		if (preg_match("/\bcheck_access=0\b/", $selector)) return;
+		if (preg_match("/\binclude=all\b/", $selector)) return;
+		if (isset($options['findAll']) && $options['findAll']) return;
 
 		$selector = $selector . ", view_groups|inherit_access.view_groups={$user->user_groups}";
 		$event->arguments(0, $selector);
@@ -583,10 +593,118 @@ class UserGroupsHooks extends WireData implements Module {
 		return $page->inherit_access;
 	}
 
-	public function whoCanAccessInfo($event) {
+	/**
+	 * Add Access tab to page edit form.
+	 *
+	 */
+	public function accessTab(HookEvent $event) {
 
-		$wrapper = $this->modules->get("InputfieldFieldset");
-		$wrapper->label = $this->_("User Access");
+		$page = $this->pages->get($this->input->get->id);
+        if (!$page->id) return;
+
+		// If page doesn't have manage_access field at all, no need to continue
+		if ( ! $page->template->hasField($this->fieldManageAccess)) return;
+
+		// add js & css to list for admin theme to load
+		$this->config->scripts->add("//ajax.googleapis.com/ajax/libs/angularjs/1.2.10/angular.min.js");
+		$class = $this->className();
+		$info = $this->getModuleInfo();
+		$version = (int)$info['version'];
+		$this->config->scripts->add($this->config->urls->$class . "$class.js?v=$version");
+		$this->config->styles->add($this->config->urls->$class . "$class.css?v=$version");
+
+		$accessPage  = $this->getAccessPage($page);
+		$inheritPage = $this->getAccessPage($page->parent);
+		// prepare some data for js
+		$jsData = array(
+			'viewGroups' => array(),
+			'editGroups' => array(),
+			'inheritedViewGroups' => array(),
+			'inheritedEditGroups' => array(),
+			'editDisabledFor' => array(
+				$this->groupEveryone->id => true,
+				$this->groupLoggedIn->id => true
+				),
+			'groupInfo' => array(),
+			'manageAccess' => $page->manage_access,
+			'inheritPage' => array(
+				'path' => $inheritPage->path,
+				'title' => $inheritPage->title
+				),
+			'i18n' => array(
+				'headingUserGroup'   => $this->_("User group"),
+				'headingViewPages'   => $this->_("View pages"),
+				'headingEditPages'   => $this->_("Edit pages"),
+				'headingTable'       => $this->_("Which groups can access this page (and its children)?"),
+				'labelManageHere'    => $this->_("Manage access here"),
+				'labelInheritAccess' => $this->_("Inherit access from"),
+				'labelChooseGroup'   => $this->_('Choose a group')
+				)
+			);
+		foreach($accessPage->view_groups as $vg) $jsData['viewGroups'][$vg->id] = true;
+		foreach($accessPage->edit_groups as $eg) $jsData['editGroups'][$eg->id] = true;
+		foreach($inheritPage->view_groups as $ivg) $jsData['inheritedViewGroups'][$ivg->id] = true;
+		foreach($inheritPage->edit_groups as $ieg) $jsData['inheritedEditGroups'][$ieg->id] = true;
+		foreach($this->groups->find() as $g) $jsData['groupInfo'][$g->id] = $g->title;
+		// inject into config.AccessData for js to consume
+		$this->config->js('AccessData', $jsData);
+
+		// get the InputFieldForm object from the event (return value of buildForm())
+		$form = $event->return;
+
+		// create the tab
+		$accessTab = new InputfieldWrapper();
+		$accessTab->attr('id', $this->className() . 'Access');
+		$accessTab->attr('title', $this->_('Access'));
+
+		$markupField = $this->modules->get("InputfieldMarkup");
+		$markupField->label = $this->_("Do you want to manage access here?");
+
+		// view markup in a separate file, just to keep things nice and clean
+		$ngView = new TemplateFile($this->config->paths->{$this->className} . "ng-access.php");
+		// it's actually ng-html, no php --> could've just read the file as is
+		// but this way it's easier to extend should we ever need to
+		$markupField->value = $ngView->render();
+
+		$accessTab->append($markupField);
+
+		// insert Access tab after Settings
+		// - if Settings tab does not exist, insert after Children
+		// - fall back to appending to the end
+		$target = $form->find("id=ProcessPageEditSettings")->first();
+		if ( ! $target ) $target = $form->find("id=ProcessPageEditChildren")->first();
+		if ($target) $form->insertAfter($accessTab, $target);
+		else $form->append($accessTab);
+
+	}
+
+	/**
+	 * Deal with access tab input on page save.
+	 * Without this data isn't processed automatically as the regular fields are set hidden.
+	 *
+	 */
+	public function accessTabInput($event) {
+
+		// execute only on first iteration (level not given as second parameter)
+		if (count($event->arguments) > 1) return;
+
+		// form is the first argument to processInput()
+		$form = $event->arguments[0];
+
+		// force processing of our fields
+		foreach(array('manage_access', 'view_groups', 'edit_groups') as $name) {
+			$inputfield = $form->get($name);
+			if($inputfield instanceof Inputfield) $inputfield->processInput($this->input->post);
+		}
+
+	}
+
+	/**
+	 * No need for separate view for access information as we've got Access tab.
+	 * Don't mess with templates not having our fields though.
+	 *
+	 */
+	public function whoCanAccessInfo($event) {
 
 		if (isset($_POST['id'])) $id = (int) $_POST['id'];
 		else if (isset($_GET['id'])) $id = (int) $_GET['id'];
@@ -594,60 +712,14 @@ class UserGroupsHooks extends WireData implements Module {
 		$page = wire('pages')->get($id);
 
 		if ( ! $page->id) return;
-		if ($page->is(Page::statusSystem)) return;
-		if ($page->template->name == "admin") return;
 
-		$accessPage = $this->getAccessPage($page);
+		// If page doesn't have manage_access field at all, no need to continue
+		if ( ! $page->template->hasField($this->fieldManageAccess)) return;
 
-		// we're done if page based access is not in use
-		if ( ! $accessPage ) return;
-
-		// this information is not to be seen if the user does not have permission to modify it
-		if ( ! $this->user->hasPermission('user-admin')) {
-			// empty InputField
-			$event->return = $this->modules->get("InputfieldMarkup");
-			return;
-		}
-
-		$viewable = $this->modules->get("InputfieldFieldset");
-		$viewable->label = $this->_("Page is viewable for these groups");
-		$viewable->columnWidth = 50;
-
-		$editable = $this->modules->get("InputfieldFieldset");
-		$editable->label = $this->_("Page is editable for these groups");
-		$editable->columnWidth = 50;
-
-		$pug = $this->modules->getModuleID('ProcessUserGroups');
-		$ugp = wire('pages')->get("template=admin, process=$pug");
-
-		$field = $this->modules->get("InputfieldMarkup");
-		$out = "";
-		foreach ($accessPage->view_groups as $g) {
-			$out .= "<a class='modal' href='{$ugp->url}edit/?group_id={$g->id}&modal=1'>$g->title</a>, ";
-		}
-
-		$out = rtrim($out, " ,");
-		$field->value = $out;
-		$viewable->add($field);
-
-		$field = $this->modules->get("InputfieldMarkup");
-		$out = "";
-		foreach ($accessPage->edit_groups as $g) {
-			$out .= "<a class='modal' href='{$ugp->url}edit/?group_id={$g->id}&modal=1'>$g->title</a>, ";
-		}
-		$out = rtrim($out, " ,");
-		$field->value = $out;
-		$editable->add($field);
-
-		$wrapper->add($viewable);
-		$wrapper->add($editable);
-
-		if ($accessPage->id != $page->id) {
-			$wrapper->notes = $this->_("These rules are inherited from page **") . $accessPage->title . "** (" . $accessPage->url . ")";
-		} else {
-			$wrapper->notes = $this->_("These rules have been defined on this very page.");
-		}
-		$event->return = $wrapper;
+		// Page based access control it is
+		// --> empty InputField only
+		$event->return = $this->modules->get("InputfieldMarkup");
+		return;
 
 	}
 
