@@ -636,7 +636,7 @@ class UserGroupsHooks extends WireData implements Module {
 				'headingTable'       => $this->_("Which groups can access this page (and its children)?"),
 				'labelManageHere'    => $this->_("Manage access here"),
 				'labelInheritAccess' => $this->_("Inherit access from"),
-				'labelNoInherit'     => $this->_("Can't inherit - front page must define access"),
+				'labelNoInherit'     => $this->_("Inheritance not available - front page must define access"),
 				'labelChooseGroup'   => $this->_('Choose a group')
 				)
 			);
