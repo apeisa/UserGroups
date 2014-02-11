@@ -1,7 +1,14 @@
 <!-- all the Angular related markup goes inside this extra wrapper for it to be accessible by AccessApp/AccessCtrl -->
 <div xmlns:ng="http://angularjs.org" id="ng-app" ng-app="AccessApp" ng-controller="AccessCtrl">
-	<label><input type="radio" name="manage_access" value="1" ng-model="manageAccess" ng-change="init()" /> {{ i18n.labelManageHere }}</label>
-	<label><input type="radio" name="manage_access" value="0" ng-model="manageAccess" ng-change="init()" /> {{ i18n.labelInheritAccess }} <strong>{{ inheritPage.title }}</strong> ({{ inheritPage.path }})</label>
+	<label>
+		<input type="radio" name="manage_access" value="1" ng-model="manageAccess" ng-change="init()" />
+		{{ i18n.labelManageHere }}
+	</label>
+	<label>
+		<input type="radio" name="manage_access" value="0" ng-model="manageAccess" ng-change="init()" ng-disabled="!inheritPage" />
+		<span ng-show="inheritPage">{{ i18n.labelInheritAccess }} <strong>{{ inheritPage.title }}</strong> ({{ inheritPage.path }})</span>
+		<span ng-hide="inheritPage" class="NoInherit">{{ i18n.labelNoInherit }}</span>
+	</label>
 
 	<div class="AccessTableHeading">{{ i18n.headingTable }}</div>
 	<!-- try to look like other tables around here -->

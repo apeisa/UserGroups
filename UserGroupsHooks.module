@@ -617,7 +617,6 @@ class UserGroupsHooks extends WireData implements Module {
 		$this->config->styles->add($this->config->urls->$class . "$class.css?v=$version");
 
 		$accessPage  = $this->getAccessPage($page);
-		$inheritPage = $this->getAccessPage($page->parent);
 		// prepare some data for js
 		$jsData = array(
 			'viewGroups' => array(),
@@ -630,10 +629,6 @@ class UserGroupsHooks extends WireData implements Module {
 				),
 			'groupInfo' => array(),
 			'manageAccess' => $page->manage_access,
-			'inheritPage' => array(
-				'path' => $inheritPage->path,
-				'title' => $inheritPage->title
-				),
 			'i18n' => array(
 				'headingUserGroup'   => $this->_("User group"),
 				'headingViewPages'   => $this->_("View pages"),
@@ -641,14 +636,24 @@ class UserGroupsHooks extends WireData implements Module {
 				'headingTable'       => $this->_("Which groups can access this page (and its children)?"),
 				'labelManageHere'    => $this->_("Manage access here"),
 				'labelInheritAccess' => $this->_("Inherit access from"),
+				'labelNoInherit'     => $this->_("Can't inherit - front page must define access"),
 				'labelChooseGroup'   => $this->_('Choose a group')
 				)
 			);
 		foreach($accessPage->view_groups as $vg) $jsData['viewGroups'][$vg->id] = true;
 		foreach($accessPage->edit_groups as $eg) $jsData['editGroups'][$eg->id] = true;
-		foreach($inheritPage->view_groups as $ivg) $jsData['inheritedViewGroups'][$ivg->id] = true;
-		foreach($inheritPage->edit_groups as $ieg) $jsData['inheritedEditGroups'][$ieg->id] = true;
-		foreach($this->groups->find() as $g) $jsData['groupInfo'][$g->id] = $g->title;
+		foreach($this->groups->find('') as $g) $jsData['groupInfo'][$g->id] = $g->title;
+
+		// add inherited access data only if there's something to inherit (front page)
+		$inheritPage = $this->getAccessPage($page->parent);
+		if($inheritPage) {
+			$jsData['inheritPage'] = array(
+				'path' => $inheritPage->path,
+				'title' => $inheritPage->title
+				);
+			foreach($inheritPage->view_groups as $ivg) $jsData['inheritedViewGroups'][$ivg->id] = true;
+			foreach($inheritPage->edit_groups as $ieg) $jsData['inheritedEditGroups'][$ieg->id] = true;			
+		}
 		// inject into config.AccessData for js to consume
 		$this->config->js('AccessData', $jsData);
 
