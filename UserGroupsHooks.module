@@ -637,7 +637,7 @@ class UserGroupsHooks extends WireData implements Module {
 				'labelManageHere'    => $this->_("Manage access here"),
 				'labelInheritAccess' => $this->_("Inherit access from"),
 				'labelNoInherit'     => $this->_("Inheritance not available - front page must define access"),
-				'labelChooseGroup'   => $this->_('Choose a group')
+				'labelChooseGroup'   => $this->_('Choose a group...')
 				)
 			);
 		foreach($accessPage->view_groups as $vg) $jsData['viewGroups'][$vg->id] = true;
