@@ -586,6 +586,9 @@ class UserGroupsHooks extends WireData implements Module {
 	 * @return Page|false Page defining access or false if this page follows template based rules
 	*/
 	public function getAccessPage($page) {
+		if ( ! isset($page) ) return false;
+		if ( ! $page->id ) return false;
+
 		// If page doesn't have manage_access field at all, no need to continue
 		if ( ! $page->template->hasField($this->fieldManageAccess)) return false;
 
