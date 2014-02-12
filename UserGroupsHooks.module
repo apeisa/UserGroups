@@ -55,11 +55,6 @@ class UserGroupsHooks extends WireData implements Module {
 		// fetch "manage_access" field for later use (getAccessPage())
 		$this->fieldManageAccess = wire('fields')->get('manage_access');
 
-		// user is always a member of "Everyone"
-		wire('user')->user_groups->add($this->groupEveryone);
-		// logged in status could change during request, but I think it's ok to require a redirect afterwards
-		if (wire('user')->isLoggedIn()) wire('user')->user_groups->add($this->groupLoggedIn);
-
 		// hooks (see function declarations for more information)
 		$this->addHookAfter("ProcessPageEdit::buildFormRoles", $this, 'whoCanAccessInfo');
 		$this->addHookBefore("Pages::find", $this, 'find');
@@ -149,9 +144,9 @@ class UserGroupsHooks extends WireData implements Module {
 		$viewPermissions = array('page-view');
 		if (in_array($name, $editPermissions)) {
 
-
 			// find pages defining edit access for any of the groups this user is a member of
-			$selector = "edit_groups={$this->user->user_groups}, include=all";
+			$userGroups = $this->getUserGroupsSelectorValue();
+			$selector = "edit_groups=$userGroups, include=all";
 
 			// limit to a specific page if one given
 			if ($page && $page->id) $selector .= ", id=$accessPage";
@@ -169,7 +164,8 @@ class UserGroupsHooks extends WireData implements Module {
 		} elseif (in_array($name, $viewPermissions)) {
 
 			// find pages defining view access for any of the groups this user is a member of
-			$selector = "view_groups={$this->user->user_groups}, include=hidden";
+			$userGroups = $this->getUserGroupsSelectorValue();
+			$selector = "view_groups=$userGroups, include=hidden";
 
 			// limit to a specific page if one given
 			if ($page && $page->id) $selector .= ", id=$accessPage";
@@ -183,33 +179,6 @@ class UserGroupsHooks extends WireData implements Module {
 #			$this->log->message("** view: " . ($event->return ? "ok":"nope"));
 			$event->replace = true;
 			return;
-
-			// *alternative* way to check page-view when $page is defined
-			// (formed viewable() --> not suitable as-is)
-
-			// 	$accessPage = $this->getAccessPage($page);
-
-			// 	// If our view_groups have "everyone", then no need for look further
-			// 	if ($accessPage->view_groups->has($this->groupEveryone)) {
-			// 		$event->return = true;
-			// 		return;
-			// 	}
-
-			// 	// If user is logged in and logged group is selected, then no need for look further
-			// 	if ($user->isLoggedIn()) {
-			// 		if ($accessPage->view_groups->has($this->groupLoggedIn)) {
-			// 			$event->return = true;
-			// 			return;
-			// 		}
-			// 	}
-
-			// 	// If we haven't figured the view access yet, then just loop all the groups and look for our hero
-			// 	foreach ($accessPage->view_groups as $group) {
-			// 		if ($user->user_groups->has($group)) {
-			// 			$event->return = true;
-			// 			return;
-			// 		}
-			// 	}
 
 		} elseif ($page and $page->id) {
 			// TODO: page-template, page-lock, page-publish --> check users roles for these
@@ -544,8 +513,6 @@ class UserGroupsHooks extends WireData implements Module {
 
 		if ($page->template->name == "admin") return;
 
-		if ( ! $user->user_groups) return;
-
 		$options = $event->arguments(1);
 
 		if (isset($options['findOne'])) {
@@ -565,7 +532,8 @@ class UserGroupsHooks extends WireData implements Module {
 		if (preg_match("/\binclude=all\b/", $selector)) return;
 		if (isset($options['findAll']) && $options['findAll']) return;
 
-		$selector = $selector . ", view_groups|inherit_access.view_groups={$user->user_groups}";
+		$userGroups = $this->getUserGroupsSelectorValue();
+		$selector = $selector . ", view_groups|inherit_access.view_groups=$userGroups";
 		$event->arguments(0, $selector);
 #		$this->log->message("** changed selector to: " . $selector);
 	}
@@ -586,6 +554,24 @@ class UserGroupsHooks extends WireData implements Module {
 
 		if ($page->manage_access) return $page;
 		return $page->inherit_access;
+	}
+
+	/**
+	 * Get selector value for matching users groups.
+	 *
+	 * Special groups are not added to user_groups to avoid errors when saving data for current user.
+	 * Selector value is evaluated on each call to support runtime changes (login or groups forced by other modules).
+	 *
+	 * @return string Selector value for this users groups.
+	 *
+	*/
+	protected function getUserGroupsSelectorValue() {
+		// user is always a member of "Everyone"
+		$value = "{$this->groupEveryone}";
+		if (count($this->user->user_groups)) $value .= '|' . $this->user->user_groups;
+		if (wire('user')->isLoggedIn()) $value .= '|' . $this->groupLoggedIn;
+
+		return $value;
 	}
 
 	public function whoCanAccessInfo($event) {
