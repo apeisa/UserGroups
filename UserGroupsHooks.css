@@ -1,0 +1,18 @@
+.NoInherit {
+	font-style: oblique;
+	opacity: 0.5;
+}
+.AccessTableHeading {
+	padding-top: 0.5em;
+	padding-bottom: 0.25em;
+	font-weight: bold;
+}
+.AccessTable th {
+	white-space: nowrap;
+}
+.AccessTable .GroupName {
+	width: 40%;
+}
+.AccessTable .Narrow {
+	width: 10%;
+}

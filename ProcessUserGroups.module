@@ -402,6 +402,7 @@ class ProcessUserGroups extends Process {
 			$f->label = "User Groups";
 			$f->inputfield = 'InputfieldAsmSelect';
 			$f->findPagesSelector = "template=user-group, name!=everyone|logged, include=all";
+			$f->labelFieldName = "title";
 			$f->save();
 		}
 		$ufg = $this->fieldgroups->get("user");
@@ -417,6 +418,7 @@ class ProcessUserGroups extends Process {
 			$f->description = "Choose if you want to select groups that can view or edit this page. Otherwise access is inherited from parent page";
 			$f->inputfield = "InputfieldCheckbox";
 			$f->flags = Field::flagGlobal;
+			$f->collapsed = Inputfield::collapsedHidden;
 			$f->save();
 		}
 
@@ -432,8 +434,7 @@ class ProcessUserGroups extends Process {
 			$f->template_id = $t->id;
 			$f->labelFieldName = "title";
 			$f->flags = Field::flagGlobal;
-			$f->columnWidth = 50;
-			$f->showIf = "manage_access=1";
+			$f->collapsed = Inputfield::collapsedHidden;
 			$f->save();
 		}
 
@@ -448,8 +449,7 @@ class ProcessUserGroups extends Process {
 			$f->findPagesSelector = "template=user-group, name!=everyone|logged, include=all";
 			$f->labelFieldName = "title";
 			$f->flags = Field::flagGlobal;
-			$f->columnWidth = 50;
-			$f->showIf = "manage_access=1";
+			$f->collapsed = Inputfield::collapsedHidden;
 			$f->save();
 		}
 
@@ -464,7 +464,6 @@ class ProcessUserGroups extends Process {
 			$f->labelFieldName = "path";
 			$f->derefAsPage = FieldtypePage::derefAsPageOrFalse;
 			$f->flags = Field::flagGlobal;
-			$f->columnWidth = 100;
 			$f->collapsed = Inputfield::collapsedHidden;
 			$f->save();
 		}
