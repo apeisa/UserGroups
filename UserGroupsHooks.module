@@ -459,6 +459,11 @@ class UserGroupsHooks extends WireData implements Module {
 
 	}
 
+	/**
+	 * Returns an array of templates that are allowed to be used here.
+	 * Like the original function at ProcessPageAdd.module, but skips the template based access checks.
+	 *
+	 */
 	public function allowedTemplates($event) {
 		$event->replace = true;
 		$templates = array();
@@ -468,29 +473,28 @@ class UserGroupsHooks extends WireData implements Module {
 		} else {
 			$parent_id = isset($_GET['parent_id']) ? (int) $_GET['parent_id'] : 1;
 		}
-
 		$parent = $this->pages->get($parent_id);
-
-		if ( ! $parent->editable()) throw new WireException("No hope dude");
+#		$this->log->message("allowedTemplates() for $parent->path (t: $parent->template)");
 
 		foreach ($this->templates as $t) {
 
+			// creating new pages with this template must be allowed
 			if ($t->noParents) continue;
 
-			//if($t->useRoles && !$user->hasPermission('page-create', $t)) continue;
-			//if(!$t->useRoles && !$parentEditable) continue;
-			//if(!$t->useRoles && !$user->hasPermission('page-create', $this->parent)) continue;
-
+			// existing child template restrictions under current parent must be met
 			if (count($parent->template->childTemplates)) {
 				if ( ! in_array($t->id, $parent->template->childTemplates)) continue;
 			}
 
+			// existing parent template restrictions for this template must be met
 			if (count($t->parentTemplates)) {
 				if ( ! in_array($parent->template->id, $t->parentTemplates)) continue;
 			}
 
+			// creating user groups is allowed via UserGroups module only
 			if ($t->name == 'user-group') continue;
 
+			// extra checks to keep users, roles and permissions in their own little containers no matter what
 			if ($t->flags & Template::flagSystem) {
 				if ($t->name == 'user' && $parent->id != $this->config->usersPageID) continue;
 				if ($t->name == 'role' && $parent->id != $this->config->rolesPageID) continue;
@@ -498,8 +502,10 @@ class UserGroupsHooks extends WireData implements Module {
 			}
 
 			$templates[$t->id] = $t;
+#			$this->log->message("Allowed template: $t");
 		}
 
+#		if(count($templates) == 0) $this->log->message("No templates allowed");
 		$event->return = $templates;
 	}
 
