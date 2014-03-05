@@ -192,7 +192,7 @@ class UserGroupsHooks extends WireData implements Module {
 			$this->log->message("UNSUPPORTED page permission: " . $name . " @ " . $page->id . " / " . $page->path);
 		}
 
-		$this->log->message("Page permission for core: " . $name . " @ " . ($page ? $page->id . " / " . $page->path : ""));
+#		$this->log->message("Page permission for core: " . $name . " @ " . ($page ? $page->id . " / " . $page->path : ""));
 		// let core handle
 		return;
 	}
@@ -243,14 +243,14 @@ class UserGroupsHooks extends WireData implements Module {
 		// skip pages under admin
 		if ($page->parents()->has($this->pages->get($this->config->adminRootPageID))) return;
 
-		$this->log->message("trashed: $page->id @ $page->path");
+#		$this->log->message("trashed: $page->id @ $page->path");
 
 		$deletions = array($page->id);
 		foreach ($this->pages->find("has_parent=$page, include=all") as $p) $deletions[] = $p->id;
 
 		if (count($deletions)) {
 			$sql = "DELETE FROM field_inherit_access WHERE pages_id IN(" . implode(',', $deletions) . ")";
-			$this->log->message($sql);
+#			$this->log->message($sql);
 			$this->db->query($sql);
 		}
 	}
@@ -272,7 +272,7 @@ class UserGroupsHooks extends WireData implements Module {
 		// we're done if page based access is not in use
 		if ( ! $accessPage ) return;
 
-		$this->log->message("added: $page->id @ $page->path (access defaults to $accessPage->id @ $accessPage->path)");
+#		$this->log->message("added: $page->id @ $page->path (access defaults to $accessPage->id @ $accessPage->path)");
 		// rebuild - just this new page actually
 		$this->rebuild($page->id, $accessPage->id);
 	}
@@ -297,7 +297,7 @@ class UserGroupsHooks extends WireData implements Module {
 		if ($page->manage_access == 1) $accessPage = $page;
 		else $accessPage = $page->parent("manage_access=1");
 
-		$this->log->message("moved $page->id");
+#		$this->log->message("moved $page->id");
 
 		// rebuild from moved page, using access page retrieved above
 		$this->rebuild($page->id, $accessPage->id);
@@ -321,7 +321,7 @@ class UserGroupsHooks extends WireData implements Module {
 		// don't mind trashed pages here
 		if ($page->isTrash()) return;
 
-		$this->log->message("saved: $page->id @ $page->path");
+#		$this->log->message("saved: $page->id @ $page->path");
 
 		// are there changes to view or edit groups?
 		if ($page->isChanged('view_groups') || $page->isChanged('edit_groups')) {
@@ -339,9 +339,9 @@ class UserGroupsHooks extends WireData implements Module {
 		if($page->id == 1 && $page->manage_access == 0) throw new WireException("Front page must define access at all times");
 
 		// DEBUG
-		$this->log->message("view groups changed: "   . $page->isChanged('view_groups') . ", now: " . $page->view_groups);
-		$this->log->message("edit groups changed: "   . $page->isChanged('edit_groups') . ", now: " . $page->edit_groups);
-		$this->log->message("manage access changed: " . $page->isChanged('manage_access') . ", now: " . $page->manage_access);
+#		$this->log->message("view groups changed: "   . $page->isChanged('view_groups') . ", now: " . $page->view_groups);
+#		$this->log->message("edit groups changed: "   . $page->isChanged('edit_groups') . ", now: " . $page->edit_groups);
+#		$this->log->message("manage access changed: " . $page->isChanged('manage_access') . ", now: " . $page->manage_access);
 
 		$rebuildNeeded = false;
 
@@ -364,7 +364,7 @@ class UserGroupsHooks extends WireData implements Module {
 
 		if ( ! $accessPage->id) $accessPage = $this->pages->get(1);
 
-		$this->log->message("Access changed: $page->id => $accessPage->id");
+#		$this->log->message("Access changed: $page->id => $accessPage->id");
 
 		$this->rebuild($page->id, $accessPage->id);
 
@@ -379,7 +379,7 @@ class UserGroupsHooks extends WireData implements Module {
 	*/
 	public function rebuild($parent_id = 1, $access_page_id = 1, $rebuild_all = false) {
 
- 		$this->log->message("rebuild($parent_id: '" . $this->pages->get($parent_id)->path ."', $access_page_id: '" . $this->pages->get($access_page_id)->path . "')");
+# 		$this->log->message("rebuild($parent_id: '" . $this->pages->get($parent_id)->path ."', $access_page_id: '" . $this->pages->get($access_page_id)->path . "')");
  		$insertions = array();
  		$deletions = array();
 		$parent_id = (int) $parent_id;
@@ -446,14 +446,14 @@ class UserGroupsHooks extends WireData implements Module {
 				$sql .= "($id, $access_page_id),";
 			}
 			$sql = rtrim($sql, ",") . " " . "ON DUPLICATE KEY UPDATE data=VALUES(data) ";
-			$this->log->message($sql);
+#			$this->log->message($sql);
 			$this->db->query($sql); // QA
 
 		}
 
 		if (count($deletions)) {
 			$sql = "DELETE FROM field_inherit_access WHERE pages_id IN(" . implode(',', $deletions) . ")";
-			$this->log->message($sql);
+#			$this->log->message($sql);
 			$this->db->query($sql);
 		}
 
