@@ -123,7 +123,7 @@ class UserGroupsHooks extends WireData implements Module {
 		$page = null;
 		if (count($event->arguments) > 1) $page = $event->arguments[1];
 
-#		$this->log->message("hasPagePermission: $name" . ($page ? " @ $page->path ($page->id)":""));
+#		$this->log->message("hasPagePermission: $name" . ($page ? " @ $page->path ($page->id)":"") . " for $user->name ($user->id)");
 
 		if($page && $page->id) {
 			$accessPage = $this->getAccessPage($page);
@@ -150,7 +150,7 @@ class UserGroupsHooks extends WireData implements Module {
 		if (in_array($name, $editPermissions)) {
 
 			// find pages defining edit access for any of the groups this user is a member of
-			$userGroups = $this->getUserGroupsSelectorValue();
+			$userGroups = $this->getUserGroupsSelectorValue($user);
 			$selector = "edit_groups=$userGroups, include=all";
 
 			// limit to a specific page if one given
@@ -169,7 +169,7 @@ class UserGroupsHooks extends WireData implements Module {
 		} elseif (in_array($name, $viewPermissions)) {
 
 			// find pages defining view access for any of the groups this user is a member of
-			$userGroups = $this->getUserGroupsSelectorValue();
+			$userGroups = $this->getUserGroupsSelectorValue($user);
 			$selector = "view_groups=$userGroups, include=hidden";
 
 			// limit to a specific page if one given
@@ -543,7 +543,7 @@ class UserGroupsHooks extends WireData implements Module {
 		if (preg_match("/\binclude=all\b/", $selector)) return;
 		if (isset($options['findAll']) && $options['findAll']) return;
 
-		$userGroups = $this->getUserGroupsSelectorValue();
+		$userGroups = $this->getUserGroupsSelectorValue($user);
 		$selector = $selector . ", view_groups|inherit_access.view_groups=$userGroups";
 		$event->arguments(0, $selector);
 #		$this->log->message("** changed selector to: " . $selector);
@@ -576,14 +576,17 @@ class UserGroupsHooks extends WireData implements Module {
 	 * Special groups are not added to user_groups to avoid errors when saving data for current user.
 	 * Selector value is evaluated on each call to support runtime changes (login or groups forced by other modules).
 	 *
+	 * @param User $user User whose groups to list. Optional, defaults to current user.
+	 *
 	 * @return string Selector value for this users groups.
 	 *
 	*/
-	protected function getUserGroupsSelectorValue() {
+	protected function getUserGroupsSelectorValue($user = null) {
+		if ( ! $user ) $user = wire('user');
 		// user is always a member of "Everyone"
 		$value = "{$this->groupEveryone}";
-		if (count($this->user->user_groups)) $value .= '|' . $this->user->user_groups;
-		if (wire('user')->isLoggedIn()) $value .= '|' . $this->groupLoggedIn;
+		if (count($user->user_groups)) $value .= '|' . $user->user_groups;
+		if ($user->isLoggedIn()) $value .= '|' . $this->groupLoggedIn;
 
 		return $value;
 	}
