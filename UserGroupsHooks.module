@@ -600,6 +600,9 @@ class UserGroupsHooks extends WireData implements Module {
 		$page = $this->pages->get($this->input->get->id);
         if (!$page->id) return;
 
+		// don't mind trashed pages here
+		if ($page->isTrash()) return;
+
 		// If page doesn't have manage_access field at all, no need to continue
 		if ( ! $page->template->hasField($this->fieldManageAccess)) return;
 
