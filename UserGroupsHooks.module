@@ -58,7 +58,7 @@ class UserGroupsHooks extends WireData implements Module {
 		// hooks for those with user-admin permission
 		if(wire('user')->hasPermission('user-admin')) {
 			$this->addHookAfter('ProcessPageEdit::buildForm', $this, 'accessTab');
-			$this->addHookBefore('ProcessPageEdit::processInput', $this, 'accessTabInput');
+			$this->addHookAfter('ProcessPageEdit::processInput', $this, 'accessTabInput');
 		}
 		// hooks (see function declarations for more information)
 		$this->addHookAfter("ProcessPageEdit::buildFormRoles", $this, 'whoCanAccessInfo');
@@ -697,10 +697,22 @@ class UserGroupsHooks extends WireData implements Module {
 		// form is the first argument to processInput()
 		$form = $event->arguments[0];
 
-		// force processing of our fields
-		foreach(array('manage_access', 'view_groups', 'edit_groups') as $name) {
+		// fetch the page being edited ($this->page in hooked class)
+		if($this->input->post->id) $id = (int) $this->input->post->id;
+		else if($this->input->get->id) $id = (int) $this->input->get->id;
+
+		$page = $this->pages->get($id);
+
+		// process our fields with extra care
+		// manage_access has to be the very last - otherwise checking for edit permission will
+		// fail if page is to inherit access from a page where this user does not have edit access
+		foreach(array('view_groups', 'edit_groups', 'manage_access') as $name) {
 			$inputfield = $form->get($name);
 			if($inputfield instanceof Inputfield) $inputfield->processInput($this->input->post);
+
+			if($inputfield->isChanged()) {
+				$page->set($name, $inputfield->value);
+			}
 		}
 
 	}
