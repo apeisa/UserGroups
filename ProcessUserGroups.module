@@ -85,7 +85,7 @@ class ProcessUserGroups extends Process {
 				));
 			} else {
 				$table->row(array(
-					$group->title  => "./edit/?group_id=" . $group->id,
+					(string) $group->title  => "./edit/?group_id=" . $group->id,
 					wire('users')->find("user_groups={$group->id}, limit=2")->getTotal(),
 					$remove_str => "./remove/?group_id=" . $group->id
 				));
