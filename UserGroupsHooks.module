@@ -703,6 +703,9 @@ class UserGroupsHooks extends WireData implements Module {
 
 		$page = $this->pages->get($id);
 
+		// If page doesn't have manage_access field at all, no need to continue
+		if ( ! $page->template->hasField($this->fieldManageAccess)) return;
+
 		// process our fields with extra care
 		// manage_access has to be the very last - otherwise checking for edit permission will
 		// fail if page is to inherit access from a page where this user does not have edit access
