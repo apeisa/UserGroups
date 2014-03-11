@@ -67,9 +67,14 @@ class ProcessUserGroups extends Process {
 		));
 
 		// Build filter selector (if filter form exists)
-		$selector = $form ? $this->getFilterSelector() : null;
+		$selector = array('limit=25');
+		if ( $form ) {
+			$selector[] = $this->getFilterSelector();
+		}
+		$selector = implode(',',$selector);
+		$groups = $this->page->children($selector);
 
-		foreach ($this->page->children($selector) as $group) {
+		foreach ($groups as $group) {
 
 			if ($group->name == "everyone") {
 				$table->row(array(
@@ -95,7 +100,7 @@ class ProcessUserGroups extends Process {
 
 		$table->action(array($this->_('Add New Group') => 'add/'));
 
-		$out .= $table->render();
+		$out .= $table->render().$groups->renderPager();
 
 		return $out;
 	}
