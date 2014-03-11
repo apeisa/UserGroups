@@ -640,14 +640,14 @@ class UserGroupsHooks extends WireData implements Module {
 			);
 		foreach($accessPage->view_groups as $vg) $jsData['viewGroups'][$vg->id] = true;
 		foreach($accessPage->edit_groups as $eg) $jsData['editGroups'][$eg->id] = true;
-		foreach($this->groups->find('') as $g) $jsData['groupInfo'][$g->id] = $g->title;
+		foreach($this->groups->find('') as $g) $jsData['groupInfo'][$g->id] = (string) $g->title;
 
 		// add inherited access data only if there's something to inherit (front page)
 		$inheritPage = $this->getAccessPage($page->parent);
 		if($inheritPage) {
 			$jsData['inheritPage'] = array(
 				'path' => $inheritPage->path,
-				'title' => $inheritPage->title
+				'title' => (string) $inheritPage->title
 				);
 			foreach($inheritPage->view_groups as $ivg) $jsData['inheritedViewGroups'][$ivg->id] = true;
 			foreach($inheritPage->edit_groups as $ieg) $jsData['inheritedEditGroups'][$ieg->id] = true;			
@@ -708,10 +708,12 @@ class UserGroupsHooks extends WireData implements Module {
 		// fail if page is to inherit access from a page where this user does not have edit access
 		foreach(array('view_groups', 'edit_groups', 'manage_access') as $name) {
 			$inputfield = $form->get($name);
-			if($inputfield instanceof Inputfield) $inputfield->processInput($this->input->post);
+			if ( $inputfield instanceof Inputfield ) {
+				$inputfield->processInput($this->input->post);
 
-			if($inputfield->isChanged()) {
-				$page->set($name, $inputfield->value);
+				if( $inputfield->isChanged() ) {
+					$page->set($name, $inputfield->value);
+				}
 			}
 		}
 
