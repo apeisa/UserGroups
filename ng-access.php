@@ -15,6 +15,7 @@
 	<table class="AdminDataTable AdminDataList AccessTable">
 		<thead>
 			<th class="GroupName">{{ i18n.headingUserGroup }}</th>
+			<th>{{ i18n.headingDescription }}</th>
 			<th class="Narrow">{{ i18n.headingViewPages }}</th>
 			<th class="Narrow">{{ i18n.headingEditPages }}</th>
 			<th></th>
@@ -23,6 +24,7 @@
 			<!-- a row per group with grants -->
 			<tr ng-repeat="id in grantedGroups">
 				<td>{{ groupInfo[id] }}</td>
+				<td>{{ groupDescription[id] }}</td>
 				<td><label><input type="checkbox" ng-model="contextViewGroups[id]" ng-change="grantChanged()" ng-disabled="manageAccess==0" /></label></td>
 				<td><label><input type="checkbox" ng-model="contextEditGroups[id]" ng-change="grantChanged()" ng-disabled="manageAccess==0 || editDisabledFor[id]" /></label></td>
 				<td></td>

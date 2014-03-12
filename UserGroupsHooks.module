@@ -629,6 +629,7 @@ class UserGroupsHooks extends WireData implements Module {
 			'manageAccess' => $page->manage_access,
 			'i18n' => array(
 				'headingUserGroup'   => $this->_("User group"),
+				'headingDescription' => $this->_("Description"),
 				'headingViewPages'   => $this->_("View pages"),
 				'headingEditPages'   => $this->_("Edit pages"),
 				'headingTable'       => $this->_("Which groups can access this page (and its children)?"),
@@ -636,11 +637,14 @@ class UserGroupsHooks extends WireData implements Module {
 				'labelInheritAccess' => $this->_("Inherit access from"),
 				'labelNoInherit'     => $this->_("Inheritance not available - front page must define access"),
 				'labelChooseGroup'   => $this->_('Choose a group...')
-				)
-			);
+			)
+		);
 		foreach($accessPage->view_groups as $vg) $jsData['viewGroups'][$vg->id] = true;
 		foreach($accessPage->edit_groups as $eg) $jsData['editGroups'][$eg->id] = true;
-		foreach($this->groups->find('') as $g) $jsData['groupInfo'][$g->id] = (string) $g->title;
+		foreach($this->groups->find('') as $g) {
+			$jsData['groupInfo'][$g->id] = (string) $g->title;
+			$jsData['groupDescription'][$g->id] = $g->group_description;
+		}
 
 		// add inherited access data only if there's something to inherit (front page)
 		$inheritPage = $this->getAccessPage($page->parent);
