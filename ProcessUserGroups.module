@@ -47,6 +47,7 @@ class ProcessUserGroups extends Process {
 
 		$out = "";
 		$group_str = $this->_('Group');
+		$description_str = $this->_('Description');
 		$users_count_str = $this->_("Users");
 		$remove_str = $this->_('Remove');
 
@@ -62,6 +63,7 @@ class ProcessUserGroups extends Process {
 		$table->setEncodeEntities(false);
 		$table->headerRow(array(
 			$group_str,
+			$description_str,
 			$users_count_str,
 			$remove_str
 		));
@@ -79,12 +81,14 @@ class ProcessUserGroups extends Process {
 			if ($group->name == "everyone") {
 				$table->row(array(
 					$group->title,
+					'',
 					"&#8734;",
 					"&nbsp;"
 				));
-			} else if ($group->name == "logged") {
+			} elseif ($group->name == "logged") {
 				$table->row(array(
 					$group->title,
+					'',
 					wire('users')->count(),
 					"&nbsp;"
 				));
@@ -92,6 +96,7 @@ class ProcessUserGroups extends Process {
 				$table->row(array(
 					// not using "title => url"  because it doesn't work if the group's title is a number
 					'<a href="./edit/?group_id='.$group->id.'">'.$group->title.'</a>',
+					$group->group_description,
 					wire('users')->find("user_groups={$group->id}, limit=2")->getTotal(),
 					$remove_str => "./remove/?group_id=" . $group->id
 				));
@@ -112,7 +117,10 @@ class ProcessUserGroups extends Process {
 		$this->breadcrumbs->add(new Breadcrumb('../', $this->_('User Groups')));
 
 		if ($this->input->post->group_title) {
-			$newgroup = wire('pages')->add('user-group', wire('page'), array('title' => $this->input->post->group_title));
+			$newgroup = wire('pages')->add('user-group', wire('page'), array(
+				'title' => $this->input->post->group_title,
+				'group_description' => $this->input->post->group_description
+			));
 			$this->message($this->_("New group added:") . " " . $this->input->post->group_title);
 			$this->session->redirect("../");
 		}
@@ -122,6 +130,11 @@ class ProcessUserGroups extends Process {
 		$field = $this->modules->get("InputfieldText");
 		$field->attr('id+name', 'group_title');
 		$field->label = $this->_("Group title");
+		$form->add($field);
+
+		$field = $this->modules->get("InputfieldText");
+		$field->attr('id+name', 'group_description');
+		$field->label = $this->_("Group description (optional)");
 		$form->add($field);
 
 		$submit = $this->modules->get("InputfieldSubmit");
@@ -385,10 +398,22 @@ class ProcessUserGroups extends Process {
 		// tell the user we created this page
 		$this->message("Created Page: {$page->path}");
 
+		// new field
+		$f = $this->fields->get('group_description');
+		if ( ! $f->id ) {
+			$f = new Field();
+			$f->type = $this->modules->get("FieldtypeText");
+			$f->name = "group_description";
+			$f->label = "Group description";
+			$f->inputfield = 'InputfieldText';
+			$f->save();
+		}
+
 		// new fieldgroup
 		$ug = new Fieldgroup();
 		$ug->name = "user-group";
 		$ug->add($this->fields->get('title'));
+		$ug->add($f);
 		$ug->save();
 
 		// new template using the fieldgroup
@@ -518,7 +543,7 @@ class ProcessUserGroups extends Process {
 			if ($fg->id) $this->fieldgroups->delete($fg);
 		}
 
-		$rFields = $this->fields->find("name=user_groups|inherit_access|manage_access|view_groups|edit_groups");
+		$rFields = $this->fields->find("name=user_groups|inherit_access|manage_access|view_groups|edit_groups|group_description");
 		foreach ($rFields as $f) {
 			$f->flags = 0;
 			$f->save();
