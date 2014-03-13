@@ -85,7 +85,8 @@ class ProcessUserGroups extends Process {
 				));
 			} else {
 				$table->row(array(
-					(string) $group->title  => "./edit/?group_id=" . $group->id,
+					// not using "title => url"  because it doesn't work if the group's title is a number
+					'<a href="./edit/?group_id='.$group->id.'">'.$group->title.'</a>',
 					wire('users')->find("user_groups={$group->id}, limit=2")->getTotal(),
 					$remove_str => "./remove/?group_id=" . $group->id
 				));
