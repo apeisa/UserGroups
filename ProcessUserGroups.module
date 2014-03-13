@@ -51,6 +51,7 @@ class ProcessUserGroups extends Process {
 		$users_count_str = $this->_("Users");
 		$remove_str = $this->_('Remove');
 
+
 		// Grab filter form
 		$form = $this->getFilterForm();
 		if ($form instanceof InputfieldFieldset || $form instanceof InputfieldForm) {
@@ -155,7 +156,8 @@ class ProcessUserGroups extends Process {
 
 		$out = '';
 
-		Wire::setFuel('processHeadline', $this->_('Edit Group'));
+		Wire::setFuel('processHeadline', $group->title);
+
 		$this->breadcrumbs->add(new Breadcrumb('../', $this->_('User Groups')));
 
 		if ($this->input->post->submit) {
