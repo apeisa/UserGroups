@@ -125,6 +125,7 @@ class UserGroupsHooks extends WireData implements Module {
 
 #		$this->log->message("hasPagePermission: $name" . ($page ? " @ $page->path ($page->id)":"") . " for $user->name ($user->id)");
 
+		$accessPage = null;
 		if($page && $page->id) {
 			$accessPage = $this->getAccessPage($page);
 			// we're done if page based access is not in use
