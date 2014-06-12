@@ -143,24 +143,12 @@ class UserGroupsHooks extends WireData implements Module {
 			if (in_array($name, array('page-add', 'page-create'))) $name = 'page-edit';
 		}
 
-
 		// these are the permissions handled by this module
 		$editPermissions = array('page-edit', 'page-delete', 'page-move', 'page-sort', 'page-clone', 'page-clone-tree');
 		$viewPermissions = array('page-view');
 		if (in_array($name, $editPermissions)) {
 
-			// find pages defining edit access for any of the groups this user is a member of
-			$userGroups = $this->getUserGroupsSelectorValue($user);
-			$selector = "edit_groups=$userGroups, include=all";
-
-			// limit to a specific page if one given
-			if ($page && $page->id) $selector .= ", id=$accessPage";
-
-			if ($this->pages->count($selector)) {
-				$event->return = true;
-			} else {
-				$event->return = false;
-			}
+			$event->return = $this->isMemberOfAnEditGroup($user, $page, $accessPage);
 
 #			$this->log->message("** edit / $name: " . ($event->return ? "ok":"nope"));
 			$event->replace = true;
@@ -178,10 +166,14 @@ class UserGroupsHooks extends WireData implements Module {
 			if ($this->pages->count($selector)) {
 				$event->return = true;
 			} else {
-				$event->return = false;
+				// not member of the allowed view groups OR the page defining access was unpublished
+				// --> grant view access if user has edit access (includes also unpublished pages)
+				// this is ok because view access exists always if there's edit access
+				// and this only circumvents the case where view access couldn't be checked because of unpublished status
+				$event->return = $this->isMemberOfAnEditGroup($user, $page, $accessPage);
 			}
 
-#			$this->log->message("** view: " . ($event->return ? "ok":"nope"));
+#			$this->log->message("** view: " . ($event->return ? "ok":"nope") . " :: $selector");
 			$event->replace = true;
 			return;
 
@@ -195,6 +187,29 @@ class UserGroupsHooks extends WireData implements Module {
 #		$this->log->message("Page permission for core: " . $name . " @ " . ($page ? $page->id . " / " . $page->path : ""));
 		// let core handle
 		return;
+	}
+
+	/**
+	 * Is this user a member of a group that has edit access to a page?
+	 *
+	 * @param User $user The user we're checking access for
+	 * @param Page $pageContext The page we're checking access to (may be null, if the check is a general "has any edit access")
+	 * @param Page $accessPage The page where access should be checked from (if context is defined)
+	 *
+	*/
+	protected function isMemberOfAnEditGroup($user, $pageContext, $accessPage) {
+		// find pages defining edit access for any of the groups this user is a member of
+		$userGroups = $this->getUserGroupsSelectorValue($user);
+		$selector = "edit_groups=$userGroups, include=all";
+
+		// check the specific access page if page context has been given
+		if ($pageContext && $pageContext->id) $selector .= ", id=$accessPage";
+
+		if ($this->pages->count($selector)) {
+			return true;
+		} else {
+			return false;
+		}
 	}
 
 	/**

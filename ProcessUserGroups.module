@@ -498,6 +498,8 @@ class ProcessUserGroups extends Process {
 			$f->derefAsPage = FieldtypePage::derefAsPageOrFalse;
 			$f->flags = Field::flagGlobal;
 			$f->collapsed = Inputfield::collapsedHidden;
+			# required for inheritance to work when a page is unpublished
+			$f->allowUnpub = 1;
 			$f->save();
 		}
 
