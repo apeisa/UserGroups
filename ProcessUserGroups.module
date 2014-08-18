@@ -367,11 +367,11 @@ class ProcessUserGroups extends Process {
 	 */
 	public function ___getFilterSelector() {
 
-		$selector = "";
+		$selector = "check_access=0";
 		
 		if ($this->input->whitelist->search) {
 			$search = $this->sanitizer->selectorValue($this->input->whitelist->search);
-			$selector = "title%=$search";
+			$selector .= ", title%=$search";
 		}
 
 		return $selector;
