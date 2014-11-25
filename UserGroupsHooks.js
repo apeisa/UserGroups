@@ -32,7 +32,7 @@ angular.module('AccessApp', []).controller('AccessCtrl', function($scope) {
 			if(this[key]) {
 				$scope.grantedGroups.push(key);
 			} else {
-				$scope.selectableGroups[key] = true;
+				$scope.selectableGroups[(value + key).toLowerCase()] = key;
 				$scope.selectableGroupCount++;
 			}
 		}, $scope.contextViewGroups);
@@ -50,7 +50,7 @@ angular.module('AccessApp', []).controller('AccessCtrl', function($scope) {
 		// this group has grants now
 		$scope.grantedGroups.push($scope.selectedGroup);
 		// this group is not selectable anymore
-		delete $scope.selectableGroups[$scope.selectedGroup];
+		delete $scope.selectableGroups[($scope.groupInfo[$scope.selectedGroup] + $scope.selectedGroup).toLowerCase()];
 		// no group is selected atm
 		$scope.selectedGroup = null;
 		// one less group to select
@@ -68,7 +68,7 @@ angular.module('AccessApp', []).controller('AccessCtrl', function($scope) {
 			// this group has no grants anymore
 			$scope.grantedGroups.splice(this.$index, 1);
 			// this group is selectable again
-			$scope.selectableGroups[this.id] = true;
+			$scope.selectableGroups[($scope.groupInfo[this.id] + this.id).toLowerCase()] = this.id;
 			// one more group to select
 			$scope.selectableGroupCount++;
 		}

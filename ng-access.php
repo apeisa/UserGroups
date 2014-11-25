@@ -36,7 +36,7 @@
 	<select
 		ng-model="selectedGroup"
 		ng-change="newGrant()"
-		ng-options="id as groupInfo[id] for (id, bogus) in selectableGroups"
+		ng-options="groupInfo[id] for (bogus, id) in selectableGroups track by id"
 		ng-disabled="!selectableGroupCount"
 		ng-hide="manageAccess==0">
 		<option value="">{{ i18n.labelChooseGroup }}</option>
