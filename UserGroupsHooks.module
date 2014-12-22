@@ -25,7 +25,7 @@ class UserGroupsHooks extends WireData implements Module {
 
 		return array(
 			'title' => 'User Groups Hooks',
-			'version' => 10,
+			'version' => 12,
 			'summary' => 'Autoload module that attachs all the hooks required by User Groups.',
 			'singular' => true,
 			'autoload' => true,
@@ -73,6 +73,8 @@ class UserGroupsHooks extends WireData implements Module {
 		$this->addHookBefore("User::hasTemplatePermission", $this, 'hasTemplatePermission');
 
 		$this->addHookBefore("Page::isPublic", $this, 'isPublic');
+
+		$this->addHookBefore("Pages::saveReady", $this, 'uniqueGroupTitle');
 	}
 
 	/**
@@ -623,7 +625,7 @@ class UserGroupsHooks extends WireData implements Module {
 		if ( ! $page->template->hasField($this->fieldManageAccess)) return;
 
 		// add js & css to list for admin theme to load
-		$this->config->scripts->add("//ajax.googleapis.com/ajax/libs/angularjs/1.2.10/angular.min.js");
+		$this->config->scripts->add("//ajax.googleapis.com/ajax/libs/angularjs/1.3.3/angular.min.js");
 		$class = $this->className();
 		$info = $this->getModuleInfo();
 		$version = (int)$info['version'];
@@ -764,6 +766,24 @@ class UserGroupsHooks extends WireData implements Module {
 		$event->return = $this->modules->get("InputfieldMarkup");
 		return;
 
+	}
+
+	/**
+	 * Make sure two groups can't have identical titles
+	 * 
+	 * @param HookEvent $event
+	 */
+	public function uniqueGroupTitle(HookEvent $event) {
+		$page = $event->arguments[0];
+		if ($page->template->name == "user-group") {
+			$n = 1;
+			$title = $page->title;
+			while (count($page->siblings("title=" . $this->sanitizer->selectorValue($title))->remove($page))) {
+				++$n;
+				$title = $page->title . " ($n)";
+			}
+			$page->title = $title;
+		}
 	}
 
 	public function install() {

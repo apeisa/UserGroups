@@ -10,7 +10,7 @@ class ProcessUserGroups extends Process {
 		return array(
 			'title' => __('User Groups', __FILE__),
 			'summary' => __('Manage user groups for ProcessWire for streamlined access management', __FILE__),
-			'version' => 6,
+			'version' => 7,
 			'author' => 'Antti Peisa, Niklas Lakanen, Teppo Koivula',
 			'href' => 'http://modules.processwire.com/',
 			'permission' => 'user-admin'
@@ -434,7 +434,7 @@ class ProcessUserGroups extends Process {
 			$f->name = "user_groups";
 			$f->label = "User Groups";
 			$f->inputfield = 'InputfieldAsmSelect';
-			$f->findPagesSelector = "template=user-group, name!=everyone|logged, include=all";
+			$f->findPagesSelector = "template=user-group, name!=everyone|logged, sort=title, include=all";
 			$f->labelFieldName = "title";
 			$f->save();
 		}
