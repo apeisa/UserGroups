@@ -25,7 +25,7 @@ class UserGroupsHooks extends WireData implements Module {
 
 		return array(
 			'title' => 'User Groups Hooks',
-			'version' => 12,
+			'version' => 13,
 			'summary' => 'Autoload module that attachs all the hooks required by User Groups.',
 			'singular' => true,
 			'autoload' => true,
@@ -481,15 +481,19 @@ class UserGroupsHooks extends WireData implements Module {
 	 * Returns an array of templates that are allowed to be used here.
 	 * Like the original function at ProcessPageAdd.module, but skips the template based access checks.
 	 *
+	 * @param HookEvent $event
 	 */
-	public function allowedTemplates($event) {
+	public function allowedTemplates(HookEvent $event) {
 		$event->replace = true;
 		$templates = array();
 
+		$parent_id = 1;
 		if (isset($_POST['parent_id'])) {
 			$parent_id = (int) $_POST['parent_id'];
-		} else {
-			$parent_id = isset($_GET['parent_id']) ? (int) $_GET['parent_id'] : 1;
+		} else if (isset($_GET['parent_id'])) {
+			$parent_id = (int) $_GET['parent_id'];
+		} else if (wire('page') && wire('page')->process && wire('page')->process != "ProcessPageAdd") {
+			$parent_id = wire('page')->id;
 		}
 		$parent = $this->pages->get($parent_id);
 #		$this->log->message("allowedTemplates() for $parent->path (t: $parent->template)");
