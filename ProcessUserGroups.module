@@ -10,10 +10,10 @@ class ProcessUserGroups extends Process {
 		return array(
 			'title' => __('User Groups', __FILE__),
 			'summary' => __('Manage user groups for ProcessWire for streamlined access management', __FILE__),
-			'version' => 7,
+			'version' => 10,
 			'author' => 'Antti Peisa, Niklas Lakanen, Teppo Koivula',
 			'href' => 'http://modules.processwire.com/',
-			'permission' => 'user-admin'
+			'permission' => 'user-admin',
 		);
 	}
 
@@ -117,12 +117,13 @@ class ProcessUserGroups extends Process {
 		Wire::setFuel('processHeadline', $this->_('Add New Group'));
 		$this->breadcrumbs->add(new Breadcrumb('../', $this->_('User Groups')));
 
-		if ($this->input->post->group_title) {
+		$group_title = trim($this->input->post->group_title);
+		if (!is_null($group_title) && $group_title != "") {
 			$newgroup = wire('pages')->add('user-group', wire('page'), array(
-				'title' => $this->input->post->group_title,
+				'title' => $group_title,
 				'group_description' => $this->input->post->group_description
 			));
-			$this->message($this->_("New group added:") . " " . $this->input->post->group_title);
+			$this->message($this->_("New group added:") . " " . $group_title);
 			$this->session->redirect("../");
 		}
 
@@ -131,6 +132,8 @@ class ProcessUserGroups extends Process {
 		$field = $this->modules->get("InputfieldText");
 		$field->attr('id+name', 'group_title');
 		$field->label = $this->_("Group title");
+		$field->required = true;
+		$field->attr('required', 'required');
 		$form->add($field);
 
 		$field = $this->modules->get("InputfieldText");
@@ -145,23 +148,27 @@ class ProcessUserGroups extends Process {
 		return $form->render();
 	}
 
+	/**
+	 * Edit or save single group
+	 *
+	 * @throws WireException if GET param group_id is invalid
+	 * @throws WireException if group matching group_id not found
+	 * @return string rendered form
+	 */
 	public function ___executeEdit() {
+
 		$group_id = (int) $this->input->get->group_id;
 		if ($group_id < 1) throw new WireException("Invalid group id");
 
-		$this->input->whitelist("group_id", $group_id);
-
-		$group = $this->pages->get($group_id);
-		$usersInGroup = $this->users->find("user_groups=$group");
-
-		$out = '';
-
-		Wire::setFuel('processHeadline', $group->title);
-
-		$this->breadcrumbs->add(new Breadcrumb('../', $this->_('User Groups')));
+		$group = $this->pages->get("template=user-group, id=$group_id");
+		if (!$group->id) throw new WireExeption("Group not found: $group_id");
 
 		if ($this->input->post->submit) {
-
+			// Update group details
+			$group_title = trim($this->input->post->group_title);
+			if (!is_null($group_title) && $group_title != "") $group->title = $group_title;
+			$group->group_description = $this->input->post->group_description;
+			$group->save();
 			// Add new users into group
 			foreach ($this->input->post->direct_users as $user_id) {
 				if (empty($user_id)) continue;
@@ -182,7 +189,7 @@ class ProcessUserGroups extends Process {
 				}
 
 			}
-
+			// Remove users from group
 			if ($this->input->post->remove) {
 				foreach ($this->input->post->remove as $user_id) {
 					$u = wire('users')->get($user_id);
@@ -190,9 +197,17 @@ class ProcessUserGroups extends Process {
 					$u->save();
 				}
 			}
-
+			// Reload page
 			$this->session->redirect("./?group_id=$group_id");
 		}
+
+		$this->input->whitelist("group_id", $group_id);
+		$usersInGroup = $this->users->find("user_groups=$group");
+		$out = '';
+
+		Wire::setFuel('processHeadline', $group->title);
+
+		$this->breadcrumbs->add(new Breadcrumb('../', $this->_('User Groups')));
 
 		if ($usersInGroup->count() > 0)	{
 			$table = $this->modules->get("MarkupAdminDataTable");
@@ -223,6 +238,20 @@ class ProcessUserGroups extends Process {
 
 		$form = $this->modules->get("InputfieldForm");
 		$form->action = "./?group_id=$group_id";
+
+		$field = $this->modules->get("InputfieldText");
+		$field->attr('id+name', 'group_title');
+		$field->label = $this->_("Group title");
+		$field->required = true;
+		$field->attr('required', 'required');
+		$field->value = $group->title;
+		$form->add($field);
+
+		$field = $this->modules->get("InputfieldText");
+		$field->attr('id+name', 'group_description');
+		$field->label = $this->_("Group description (optional)");
+		$field->value = $group->group_description;
+		$form->add($field);
 
 		$markup = $this->modules->get("InputfieldMarkup");
 		$markup->label = $this->_("Users in this group");

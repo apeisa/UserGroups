@@ -25,7 +25,7 @@ class UserGroupsHooks extends WireData implements Module {
 
 		return array(
 			'title' => 'User Groups Hooks',
-			'version' => 13,
+			'version' => 14,
 			'summary' => 'Autoload module that attachs all the hooks required by User Groups.',
 			'singular' => true,
 			'autoload' => true,
@@ -775,11 +775,14 @@ class UserGroupsHooks extends WireData implements Module {
 	/**
 	 * Make sure two groups can't have identical titles
 	 * 
+	 * Additionally this method keeps group names in sync with group titles.
+	 * 
 	 * @param HookEvent $event
 	 */
 	public function uniqueGroupTitle(HookEvent $event) {
 		$page = $event->arguments[0];
 		if ($page->template->name == "user-group") {
+			// make title unique
 			$n = 1;
 			$title = $page->title;
 			while (count($page->siblings("title=" . $this->sanitizer->selectorValue($title))->remove($page))) {
@@ -787,6 +790,16 @@ class UserGroupsHooks extends WireData implements Module {
 				$title = $page->title . " ($n)";
 			}
 			$page->title = $title;
+			// make name unique (note: this is mainly required for ProcessWire
+			// versions without adjustName support in $pages->save() options)
+			$n = 1;
+			$name = $this->sanitizer->pageName($title, Sanitizer::translate);
+			$page->name = $name;
+			while (count($page->siblings("name=" . $name)->remove($page))) {
+				++$n;
+				$name = $page->name . "-$n";
+			}
+			$page->name = $name;
 		}
 	}
 
