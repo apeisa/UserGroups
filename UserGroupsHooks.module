@@ -25,7 +25,7 @@ class UserGroupsHooks extends WireData implements Module {
 
 		return array(
 			'title' => 'User Groups Hooks',
-			'version' => 14,
+			'version' => 15,
 			'summary' => 'Autoload module that attachs all the hooks required by User Groups.',
 			'singular' => true,
 			'autoload' => true,
@@ -584,6 +584,14 @@ class UserGroupsHooks extends WireData implements Module {
 	public function getAccessPage($page) {
 		if ( ! isset($page) ) return false;
 		if ( ! $page->id ) return false;
+
+		// If this is a Repeater Page, access is managed elsewhere
+		if (substr($page->template, 0, 9) == "repeater_") {
+			if (preg_match("/\/for-page-([0-9]+)\//", $page->url, $matches)) {
+				$page = $this->pages->get($matches[1]);
+				if (!$page->id) return false;
+			}
+		}
 
 		// If page doesn't have manage_access field at all, no need to continue
 		if ( ! $page->template->hasField($this->fieldManageAccess)) return false;
