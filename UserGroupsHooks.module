@@ -736,8 +736,10 @@ class UserGroupsHooks extends WireData implements Module {
 		// manage_access has to be the very last - otherwise checking for edit permission will
 		// fail if page is to inherit access from a page where this user does not have edit access
 		foreach(array('view_groups', 'edit_groups', 'manage_access') as $name) {
-			$inputfield = $form->get($name);
+			$field = $form->fields->get($name);
+      $inputfield = $field->getInputfield($page);
 			if ( $inputfield instanceof Inputfield ) {
+				$inputfield->setTrackChanges(true);
 				$inputfield->processInput($this->input->post);
 
 				if( $inputfield->isChanged() ) {
