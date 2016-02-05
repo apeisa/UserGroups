@@ -484,6 +484,12 @@ class UserGroupsHooks extends WireData implements Module {
 	 * @param HookEvent $event
 	 */
 	public function allowedTemplates(HookEvent $event) {
+
+		// Skip this when regular user admin views.
+		if (wire('page')->process) {
+		  if (wire('page')->process == "ProcessUser" || wire('page')->process == "ProcessRole") return;
+		}
+
 		$event->replace = true;
 		$templates = array();
 
