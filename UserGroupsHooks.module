@@ -45,7 +45,7 @@ class UserGroupsHooks extends WireData implements Module {
 		// Add $groups API variable
 		$template = $this->templates->get('user-group');
 		$parent = $this->pages->get("template=admin, name=usergroups");
-		$groups = new PagesType($template, $parent->id);
+		$groups = new PagesType($this->wire, $template, $parent->id);
 		Wire::setFuel('groups', $groups);
 
 		// fetch special groups for later use (find(), viewable())
