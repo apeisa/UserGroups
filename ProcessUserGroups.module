@@ -1,4 +1,4 @@
-<?php
+<?php namespace ProcessWire;
 
 class ProcessUserGroups extends Process {
 
@@ -10,10 +10,11 @@ class ProcessUserGroups extends Process {
 		return array(
 			'title' => __('User Groups', __FILE__),
 			'summary' => __('Manage user groups for ProcessWire for streamlined access management', __FILE__),
-			'version' => 10,
+			'version' => 100,
 			'author' => 'Antti Peisa, Niklas Lakanen, Teppo Koivula',
 			'href' => 'http://modules.processwire.com/',
 			'permission' => 'user-admin',
+			'icon' => 'shield', 
 		);
 	}
 

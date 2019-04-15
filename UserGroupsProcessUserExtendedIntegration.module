@@ -1,4 +1,4 @@
-<?php
+<?php namespace ProcessWire;
 
 /**
  * User Groups - Process User Extended Integration
@@ -22,7 +22,7 @@ class UserGroupsProcessUserExtendedIntegration extends WireData implements Modul
 
 		return array(
 			'title' => 'Process User Extended Integration for User Groups',
-			'version' => 100,
+			'version' => 101,
 			'summary' => 'Integrates User Groups and Process User Extended.',
 			'singular' => true,
 			'autoload' => true,
