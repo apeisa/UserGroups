@@ -25,7 +25,7 @@ class UserGroupsHooks extends WireData implements Module {
 
 		return array(
 			'title' => 'User Groups Hooks',
-			'version' => 14,
+			'version' => 15,
 			'summary' => 'Autoload module that attachs all the hooks required by User Groups.',
 			'singular' => true,
 			'autoload' => true,
@@ -100,7 +100,7 @@ class UserGroupsHooks extends WireData implements Module {
 		$event->return = false;
 
 		// page not published --> not public
-		if($this->status >= Page::statusUnpublished) return;
+		if($page->status >= Page::statusUnpublished) return;
 
 		// page is public if view_groups includes "everyone"
 		if ($accessPage->view_groups->has($this->groupEveryone)) {
