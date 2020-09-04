@@ -1,5 +1,5 @@
 <!-- all the Angular related markup goes inside this extra wrapper for it to be accessible by AccessApp/AccessCtrl -->
-<div xmlns:ng="http://angularjs.org" id="ng-app" ng-app="AccessApp" ng-controller="AccessCtrl">
+<div xmlns:ng="http://angularjs.org" id="ng-access-app" ng-controller="AccessCtrl">
 	<label>
 		<input type="radio" name="manage_access" value="1" ng-model="manageAccess" ng-change="init()" />
 		{{ i18n.labelManageHere }}
@@ -54,3 +54,5 @@
 		class="ng-hide">
 	</select>
 </div>
+
+<script>angular.bootstrap(document.getElementById('ng-access-app'), ['AccessApp']);</script>
