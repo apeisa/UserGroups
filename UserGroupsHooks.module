@@ -25,7 +25,7 @@ class UserGroupsHooks extends WireData implements Module {
 
 		return array(
 			'title' => 'User Groups Hooks',
-			'version' => 15,
+			'version' => 16,
 			'summary' => 'Autoload module that attachs all the hooks required by User Groups.',
 			'singular' => true,
 			'autoload' => true,
@@ -45,7 +45,11 @@ class UserGroupsHooks extends WireData implements Module {
 		// Add $groups API variable
 		$template = $this->templates->get('user-group');
 		$parent = $this->pages->get("template=admin, name=usergroups");
-		$groups = new PagesType($template, $parent->id);
+		if (version_compare($this->config->version, '3.0.0', '>=')) {
+			$groups = new PagesType($this->wire, $template, $parent->id);
+		} else {
+			$groups = new PagesType($template, $parent->id);
+		}
 		Wire::setFuel('groups', $groups);
 
 		// fetch special groups for later use (find(), viewable())
@@ -100,7 +104,7 @@ class UserGroupsHooks extends WireData implements Module {
 		$event->return = false;
 
 		// page not published --> not public
-		if($page->status >= Page::statusUnpublished) return;
+		if($this->status >= Page::statusUnpublished) return;
 
 		// page is public if view_groups includes "everyone"
 		if ($accessPage->view_groups->has($this->groupEveryone)) {
@@ -484,6 +488,12 @@ class UserGroupsHooks extends WireData implements Module {
 	 * @param HookEvent $event
 	 */
 	public function allowedTemplates(HookEvent $event) {
+
+		// Skip this when regular user admin views.
+		if (wire('page')->process) {
+			if (wire('page')->process == "ProcessUser" || wire('page')->process == "ProcessRole") return;
+		}
+
 		$event->replace = true;
 		$templates = array();
 
@@ -676,7 +686,7 @@ class UserGroupsHooks extends WireData implements Module {
 				'title' => (string) $inheritPage->title
 				);
 			foreach($inheritPage->view_groups as $ivg) $jsData['inheritedViewGroups'][$ivg->id] = true;
-			foreach($inheritPage->edit_groups as $ieg) $jsData['inheritedEditGroups'][$ieg->id] = true;			
+			foreach($inheritPage->edit_groups as $ieg) $jsData['inheritedEditGroups'][$ieg->id] = true;
 		}
 		// inject into config.AccessData for js to consume
 		$this->config->js('AccessData', $jsData);
@@ -736,8 +746,10 @@ class UserGroupsHooks extends WireData implements Module {
 		// manage_access has to be the very last - otherwise checking for edit permission will
 		// fail if page is to inherit access from a page where this user does not have edit access
 		foreach(array('view_groups', 'edit_groups', 'manage_access') as $name) {
-			$inputfield = $form->get($name);
+			$field = $form->fields->get($name);
+			$inputfield = $field->getInputfield($page);
 			if ( $inputfield instanceof Inputfield ) {
+				$inputfield->setTrackChanges(true);
 				$inputfield->processInput($this->input->post);
 
 				if( $inputfield->isChanged() ) {
@@ -774,9 +786,9 @@ class UserGroupsHooks extends WireData implements Module {
 
 	/**
 	 * Make sure two groups can't have identical titles
-	 * 
+	 *
 	 * Additionally this method keeps group names in sync with group titles.
-	 * 
+	 *
 	 * @param HookEvent $event
 	 */
 	public function uniqueGroupTitle(HookEvent $event) {

@@ -10,7 +10,7 @@ class ProcessUserGroups extends Process {
 		return array(
 			'title' => __('User Groups', __FILE__),
 			'summary' => __('Manage user groups for ProcessWire for streamlined access management', __FILE__),
-			'version' => 10,
+			'version' => 11,
 			'author' => 'Antti Peisa, Niklas Lakanen, Teppo Koivula',
 			'href' => 'http://modules.processwire.com/',
 			'permission' => 'user-admin',
@@ -359,7 +359,7 @@ class ProcessUserGroups extends Process {
 	 * @return mixed InputfieldFieldset by default, but can be altered by hooks
 	 */
 	public function ___getFilterForm() {
-		
+
 		$fields = $this->modules->get("InputfieldFieldset");
 
 		$form = $this->modules->get("InputfieldForm");
@@ -369,7 +369,7 @@ class ProcessUserGroups extends Process {
 		if (!$this->input->get->search) {
 			$form->collapsed = Inputfield::collapsedYes;
 		}
-		
+
 		$field = $this->modules->get("InputfieldText");
 		$field->attr('name', 'search');
 		$field->label = $this->_("Search");
@@ -378,17 +378,17 @@ class ProcessUserGroups extends Process {
 			$field->attr('value', $this->sanitizer->text($this->input->get->search));
 		}
 		$form->add($field);
-		
+
 		$field = $this->modules->get("InputfieldSubmit");
 		$field->attr('value', $this->_("Search"));
 		$form->add($field);
-		
+
 		$fields->add($form);
-		
+
 		return $fields;
-		
+
 	}
-	
+
 	/**
 	 * Build selector for execute method
 	 *
@@ -397,7 +397,7 @@ class ProcessUserGroups extends Process {
 	public function ___getFilterSelector() {
 
 		$selector = "check_access=0";
-		
+
 		if ($this->input->whitelist->search) {
 			$search = $this->sanitizer->selectorValue($this->input->whitelist->search);
 			$selector .= ", title%=$search";
