@@ -595,6 +595,14 @@ class UserGroupsHooks extends WireData implements Module {
 		if ( ! isset($page) ) return false;
 		if ( ! $page->id ) return false;
 
+		// If this is a Repeater Page, access is managed elsewhere
+		if (strpos($page->url, $this->config->urls->admin . "repeaters/") === 0 && substr($page->template, 0, 9) == "repeater_") {
+			if (preg_match("/\/for-page-([0-9]+)\//", $page->url, $matches)) {
+				$page = $this->pages->get($matches[1]);
+				if (!$page->id) return false;
+			}
+		}
+
 		// If page doesn't have manage_access field at all, no need to continue
 		if ( ! $page->template->hasField($this->fieldManageAccess)) return false;
 
